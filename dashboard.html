@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <a class="nav-item active" href="dashboard.html">Dashboard</a>
+        <a class="nav-item" href="timesheets.html">Timesheets</a>
+        <a class="nav-item" href="expenses.html">Expenses</a>
+        <a class="nav-item" href="allocations.html">Allocations</a>
+        <a class="nav-item" href="projects.html">Projects</a>
+        <a class="nav-item" href="approvals.html">Approvals</a>
+        <a class="nav-item" href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Weekly summary</strong>
+            <span id="sb-week-left">—</span>
+          </div>
+          <div class="link-item">
+            <strong>Pending approvals</strong>
+            <span id="sb-pending">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <div style="padding:10px 0 8px; border-top:1px solid var(--border); margin-bottom:6px;"><div style="font-size:0.72rem; color:var(--muted); margin-bottom:2px;">Signed in as</div><div class="js-user-name" style="font-size:0.85rem; font-weight:600; color:var(--text);">—</div></div><a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Overview of team capacity, approvals, and weekly progress.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="week-nav" id="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="dash-week-label">Apr 8 − Apr 14</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+          <div class="chip">Team: Operations</div>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-label">Total hours this week</div>
+          <p class="summary-value" id="card-total">32.5</p>
+          <div class="summary-meta">
+            <span id="card-total-meta">Logged this week</span>
+          </div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Approval status</div>
+          <p class="summary-value" id="card-status-value">Draft</p>
+          <div class="summary-meta">
+            <span>Manager review</span>
+            <span class="status-pill status-pending" id="card-status-pill">Waiting</span>
+          </div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Project focus</div>
+          <p class="summary-value" id="card-project">UX Refresh</p>
+          <div class="summary-meta">
+            <span id="card-project-hours">5 tasks</span>
+            <span id="card-project-pct">72% of time</span>
+          </div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Submission</div>
+          <p class="summary-value" id="card-submission">Draft</p>
+          <div class="summary-meta">
+            <span>Due Fri</span>
+            <span>Auto-save</span>
+          </div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Billable target</div>
+          <p class="summary-value" id="card-bill-util">—%</p>
+          <div class="summary-meta">
+            <span>Target: 80%</span>
+            <span id="card-bill-status" style="font-weight:600;">—</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Recent activity</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Timesheet and approval updates.</p>
+          </div>
+          <a href="approvals.html" style="font-size:0.82rem; color:var(--accent); font-weight:600; text-decoration:none;">View all →</a>
+        </div>
+        <div id="activity-list">
+          <div style="color:var(--muted); font-size:0.9rem; padding:8px 0;">Loading…</div>
+        </div>
+      </section>
+
+      <section class="panel time-graph-panel">
+        <div class="panel-header">
+          <div>
+            <h3>Time usage</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Hours logged per day or week.</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span class="chip" id="graph-total">Total 32.5h</span>
+            <div class="view-tabs">
+              <button class="view-tab active" onclick="switchGraphView('daily', this)">Daily</button>
+              <button class="view-tab" onclick="switchGraphView('weekly', this)">Weekly</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily view: Mon–Sun for current week -->
+        <div id="graph-daily" class="line-chart">
+          <div class="line-chart-left">
+            <span>8h</span>
+            <span>6h</span>
+            <span>4h</span>
+            <span>2h</span>
+            <span>0h</span>
+          </div>
+          <div class="line-chart-right">
+            <svg viewBox="0 0 520 220" preserveAspectRatio="xMinYMin meet" class="line-chart-svg" aria-label="Daily hours line chart">
+              <defs>
+                <linearGradient id="lineGradientDaily" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#0f766e" stop-opacity="1" />
+                  <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.35" />
+                </linearGradient>
+              </defs>
+              <line x1="50" y1="22"  x2="470" y2="22"  class="grid-line" />
+              <line x1="50" y1="66"  x2="470" y2="66"  class="grid-line" />
+              <line x1="50" y1="110" x2="470" y2="110" class="grid-line" />
+              <line x1="50" y1="154" x2="470" y2="154" class="grid-line" />
+              <line x1="50" y1="198" x2="470" y2="198" class="axis-line" />
+              <path id="d-path" d="M50,55 L120,44 L190,66 L260,77 L330,33 L400,198 L470,198" class="line-path" />
+              <path id="d-area" d="M50,55 L120,44 L190,66 L260,77 L330,33 L400,198 L470,198 L470,198 L50,198 Z" fill="url(#lineGradientDaily)" opacity="0.45" />
+              <circle id="d-pt-0" cx="50"  cy="55"  r="6" class="line-point" />
+              <circle id="d-pt-1" cx="120" cy="44"  r="6" class="line-point" />
+              <circle id="d-pt-2" cx="190" cy="66"  r="6" class="line-point" />
+              <circle id="d-pt-3" cx="260" cy="77"  r="6" class="line-point" />
+              <circle id="d-pt-4" cx="330" cy="33"  r="6" class="line-point" />
+              <circle id="d-pt-5" cx="400" cy="198" r="6" class="line-point" />
+              <circle id="d-pt-6" cx="470" cy="198" r="6" class="line-point" />
+              <g class="svg-x-axis-labels">
+                <text id="d-day-0" x="50"  y="224" class="svg-x-label">Mon</text>
+                <text id="d-day-1" x="120" y="224" class="svg-x-label">Tue</text>
+                <text id="d-day-2" x="190" y="224" class="svg-x-label">Wed</text>
+                <text id="d-day-3" x="260" y="224" class="svg-x-label">Thu</text>
+                <text id="d-day-4" x="330" y="224" class="svg-x-label">Fri</text>
+                <text id="d-day-5" x="400" y="224" class="svg-x-label">Sat</text>
+                <text id="d-day-6" x="470" y="224" class="svg-x-label">Sun</text>
+                <text id="d-val-0" x="50"  y="241" class="svg-x-value">6.5h</text>
+                <text id="d-val-1" x="120" y="241" class="svg-x-value">7.0h</text>
+                <text id="d-val-2" x="190" y="241" class="svg-x-value">6.0h</text>
+                <text id="d-val-3" x="260" y="241" class="svg-x-value">5.5h</text>
+                <text id="d-val-4" x="330" y="241" class="svg-x-value">7.5h</text>
+                <text id="d-val-5" x="400" y="241" class="svg-x-value">0h</text>
+                <text id="d-val-6" x="470" y="241" class="svg-x-value">0h</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Weekly view: all 4 weeks of April -->
+        <div id="graph-weekly" class="line-chart" style="display:none;">
+          <div class="line-chart-left">
+            <span>40h</span>
+            <span>30h</span>
+            <span>20h</span>
+            <span>10h</span>
+            <span>0h</span>
+          </div>
+          <div class="line-chart-right">
+            <svg viewBox="0 0 520 220" preserveAspectRatio="xMinYMin meet" class="line-chart-svg" aria-label="Weekly totals line chart">
+              <defs>
+                <linearGradient id="lineGradientWeekly" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#0f766e" stop-opacity="1" />
+                  <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.35" />
+                </linearGradient>
+              </defs>
+              <line x1="50" y1="22"  x2="480" y2="22"  class="grid-line" />
+              <line x1="50" y1="66"  x2="480" y2="66"  class="grid-line" />
+              <line x1="50" y1="110" x2="480" y2="110" class="grid-line" />
+              <line x1="50" y1="154" x2="480" y2="154" class="grid-line" />
+              <line x1="50" y1="198" x2="480" y2="198" class="axis-line" />
+              <path d="M80,33 L220,55 L360,40 L480,31" class="line-path" />
+              <path d="M80,33 L220,55 L360,40 L480,31 L480,198 L80,198 Z" fill="url(#lineGradientWeekly)" opacity="0.45" />
+              <circle cx="80"  cy="33" r="6" class="line-point" />
+              <circle cx="220" cy="55" r="6" class="line-point" />
+              <circle cx="360" cy="40" r="6" class="line-point" />
+              <circle cx="480" cy="31" r="6" class="line-point" />
+              <g class="svg-x-axis-labels">
+                <text x="80"  y="212" class="svg-x-label">Apr 1–7</text>
+                <text x="220" y="212" class="svg-x-label">Apr 8–14</text>
+                <text x="360" y="212" class="svg-x-label">Apr 15–21</text>
+                <text x="480" y="212" class="svg-x-label">Apr 22–28</text>
+                <text x="80"  y="226" class="svg-x-value">37.5h</text>
+                <text x="220" y="226" class="svg-x-value">32.5h</text>
+                <text x="360" y="226" class="svg-x-value">36.0h</text>
+                <text x="480" y="226" class="svg-x-value">38.0h</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>This week's projects</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Hours logged per project this week.</p>
+          </div>
+          <a class="button" href="projects.html">View projects</a>
+        </div>
+        <div class="summary-grid" id="project-cards">
+          <div style="color:var(--muted); font-size:0.9rem; grid-column:1/-1; padding:8px 0;">Loading…</div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const X_POS     = [50, 120, 190, 260, 330, 400, 470];
+    const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    let _currentMonday  = mondayOf();
+    let _currentWeekData = null;
+    let _projectsById   = {};
+    let dashboardView   = 'daily';
+
+    const STATUS_MAP = {
+      approved:  { pillClass: 'status-approved', pillText: 'Approved' },
+      submitted: { pillClass: 'status-pending',  pillText: 'Waiting'  },
+      draft:     { pillClass: 'status-pending',  pillText: 'Waiting'  },
+      rejected:  { pillClass: 'status-draft',    pillText: 'Rejected' },
+    };
+
+    function hoursToY(h) { return Math.max(22, Math.round(198 - h * 22)); }
+
+    function updateDailyChart(week) {
+      if (!week) return;
+      const ys  = week.days.map(hoursToY);
+      const pts = X_POS.map((x, i) => `${x},${ys[i]}`);
+      const lineD = 'M' + pts.join(' L');
+      const areaD = lineD + ` L${X_POS[6]},198 L${X_POS[0]},198 Z`;
+
+      document.getElementById('d-path').setAttribute('d', lineD);
+      document.getElementById('d-area').setAttribute('d', areaD);
+      X_POS.forEach((_, i) => {
+        document.getElementById(`d-pt-${i}`).setAttribute('cy', ys[i]);
+        document.getElementById(`d-day-${i}`).textContent = DAY_NAMES[i];
+        document.getElementById(`d-val-${i}`).textContent = week.days[i] > 0 ? week.days[i] + 'h' : '0h';
+      });
+
+      document.getElementById('dash-week-label').textContent = week.label;
+      const weekTotal = week.days.reduce((s, h) => s + h, 0);
+      if (dashboardView === 'daily') {
+        document.getElementById('graph-total').textContent = `Total ${weekTotal.toFixed(1)}h`;
+      }
+
+      document.getElementById('card-total').textContent         = weekTotal.toFixed(1);
+      document.getElementById('card-submission').textContent    = week.status;
+      document.getElementById('card-status-value').textContent  = week.status;
+      document.getElementById('card-project').textContent       = week.project;
+      document.getElementById('card-project-hours').textContent = week.tasks;
+      document.getElementById('card-project-pct').textContent   = week.pct;
+
+      const s = STATUS_MAP[week.status.toLowerCase()] || STATUS_MAP.draft;
+      const pill = document.getElementById('card-status-pill');
+      pill.className   = `status-pill ${s.pillClass}`;
+      pill.textContent = s.pillText;
+
+      const billUtil  = weekTotal > 0 ? Math.round((week.billable / weekTotal) * 100) : 0;
+      const billColor = billUtil >= 80 ? '#16a34a' : billUtil >= 65 ? '#d97706' : '#dc2626';
+      const billSt    = billUtil >= 80 ? 'On target' : billUtil >= 65 ? 'Below target' : 'At risk';
+      const billEl  = document.getElementById('card-bill-util');
+      const billStEl = document.getElementById('card-bill-status');
+      if (billEl)  { billEl.textContent = billUtil + '%'; billEl.style.color = billColor; }
+      if (billStEl) { billStEl.textContent = billSt; billStEl.style.color = billColor; }
+    }
+
+    async function _loadWeek(monday) {
+      const iso = isoDate(monday);
+      let projHours = {};
+      try {
+        const ts = await apiFetch(`/timesheets/?week_start=${iso}`);
+        if (!ts) throw new Error('null');
+        const days = [0, 0, 0, 0, 0, 0, 0];
+        let billableHours = 0;
+        projHours = {};
+        for (const e of ts.entries) {
+          const di = dayIndex(e.date);
+          days[di] += e.hours;
+          if (e.billable) billableHours += e.hours;
+          const key = String(e.project_id);
+          projHours[key] = (projHours[key] || 0) + e.hours;
+        }
+        let topProjId = null, topProjHours = 0;
+        for (const [pid, h] of Object.entries(projHours)) {
+          if (h > topProjHours) { topProjHours = h; topProjId = pid; }
+        }
+        const totalHours  = days.reduce((s, h) => s + h, 0);
+        const topProjName = topProjId ? (_projectsById[topProjId]?.name || 'Project') : '—';
+        const topProjPct  = totalHours > 0 && topProjHours > 0 ? Math.round((topProjHours / totalHours) * 100) + '% of time' : '—';
+        const taskSet = new Set(ts.entries.map(e => e.task).filter(Boolean));
+        const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Draft';
+        _currentWeekData = {
+          label:   weekLabel(monday),
+          status:  cap(ts.status),
+          days,
+          billable: billableHours,
+          project:  topProjName,
+          tasks:    taskSet.size + ' task' + (taskSet.size !== 1 ? 's' : ''),
+          pct:      topProjPct,
+        };
+      } catch(_) {
+        _currentWeekData = { label: weekLabel(monday), status: 'Draft', days: [0,0,0,0,0,0,0], billable: 0, project: '—', tasks: '0 tasks', pct: '—' };
+      }
+
+      // Sidebar: hours left
+      const cap = getUser()?.weekly_capacity_hours || 40;
+      const weekTotal = _currentWeekData.days.reduce((s, h) => s + h, 0);
+      const sbLeft = document.getElementById('sb-week-left');
+      if (sbLeft) sbLeft.textContent = `${Math.max(0, +(cap - weekTotal).toFixed(1))}h left`;
+
+      // Project cards
+      const cardsEl = document.getElementById('project-cards');
+      if (cardsEl) {
+        const entries = Object.entries(projHours || {})
+          .map(([pid, h]) => ({ name: _projectsById[pid]?.name || 'Project', hours: +h.toFixed(1) }))
+          .filter(p => p.hours > 0)
+          .sort((a, b) => b.hours - a.hours)
+          .slice(0, 3);
+        cardsEl.innerHTML = entries.length === 0
+          ? `<div style="color:var(--muted); font-size:0.9rem; grid-column:1/-1;">No hours logged this week.</div>`
+          : entries.map(p => `
+              <article class="summary-card">
+                <div class="summary-label">${p.name}</div>
+                <p class="summary-value">${p.hours}h</p>
+                <div class="summary-meta"><span>${weekTotal > 0 ? Math.round((p.hours / weekTotal) * 100) : 0}% of time</span></div>
+              </article>`).join('');
+      }
+
+      updateDailyChart(_currentWeekData);
+    }
+
+    async function _loadActivity() {
+      const actEl = document.getElementById('activity-list');
+      const mondays = [];
+      let mon = mondayOf();
+      for (let i = 0; i < 8; i++) {
+        mondays.push(new Date(mon));
+        mon = new Date(mon); mon.setDate(mon.getDate() - 7);
+      }
+      try {
+        const results = await Promise.all(
+          mondays.map(w => apiFetch(`/timesheets/?week_start=${isoDate(w)}`).catch(() => null))
+        );
+        const items = results
+          .map((ts, i) => {
+            if (!ts) return null;
+            const st = ts.status?.toLowerCase();
+            if (!st || st === 'not_started') return null;
+            return { week: weekLabel(mondays[i]), status: st, rejectNote: ts.reject_note || null };
+          })
+          .filter(Boolean);
+
+        // Update sidebar pending count
+        const pending = items.filter(it => it.status === 'submitted').length;
+        const sbPend = document.getElementById('sb-pending');
+        if (sbPend) sbPend.textContent = pending + ' request' + (pending !== 1 ? 's' : '');
+
+        const visible = items.slice(0, 6);
+        if (visible.length === 0) {
+          actEl.innerHTML = `<div style="color:var(--muted); font-size:0.9rem; padding:8px 0;">No recent activity.</div>`;
+          return;
+        }
+        actEl.innerHTML = visible.map((it, idx) => {
+          const icon  = it.status === 'approved' ? '✓' : it.status === 'rejected' ? '✗' : '●';
+          const color = it.status === 'approved' ? '#16a34a' : it.status === 'rejected' ? '#dc2626' : '#f59e0b';
+          const label = it.status === 'approved' ? 'Timesheet approved by your manager'
+                      : it.status === 'rejected' ? `Timesheet rejected${it.rejectNote ? ` — "${it.rejectNote}"` : ''}`
+                      : it.status === 'submitted' ? 'Timesheet pending manager review'
+                      : `Timesheet ${it.status}`;
+          const border = idx < visible.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
+          return `
+            <div style="display:flex; align-items:flex-start; gap:12px; padding:10px 0; ${border}">
+              <span style="font-size:1rem; font-weight:800; color:${color}; min-width:16px; text-align:center; margin-top:1px;">${icon}</span>
+              <div>
+                <div style="font-size:0.875rem; font-weight:600; color:var(--text);">${label}</div>
+                <div style="font-size:0.78rem; color:var(--muted); margin-top:2px;">${it.week}</div>
+              </div>
+            </div>`;
+        }).join('');
+      } catch(_) {
+        if (actEl) actEl.innerHTML = `<div style="color:var(--muted); font-size:0.9rem;">Could not load activity.</div>`;
+      }
+    }
+
+    async function changeWeek(dir) {
+      _currentMonday = new Date(_currentMonday);
+      _currentMonday.setDate(_currentMonday.getDate() + dir * 7);
+      await _loadWeek(_currentMonday);
+    }
+
+    function switchGraphView(view, btn) {
+      dashboardView = view;
+      document.getElementById('graph-daily').style.display  = view === 'daily'  ? '' : 'none';
+      document.getElementById('graph-weekly').style.display = view === 'weekly' ? '' : 'none';
+      const weekTotal = _currentWeekData ? _currentWeekData.days.reduce((s, h) => s + h, 0) : 0;
+      document.getElementById('graph-total').textContent = view === 'daily' ? `Total ${weekTotal.toFixed(1)}h` : 'Monthly total';
+      document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    let calMonth = new Date().getMonth(), calYear = new Date().getFullYear();
+    function buildCalendar() {
+      const drop = document.getElementById('week-cal-drop');
+      if (!drop) return;
+      const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const firstDow    = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const curMonIso   = isoDate(_currentMonday);
+      let cells = '';
+      for (let i = 0; i < firstDow; i++) cells += `<div class="week-cal-cell empty"></div>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(calYear, calMonth, d);
+        const mon = new Date(dt);
+        const dow = dt.getDay();
+        mon.setDate(d - (dow === 0 ? 6 : dow - 1));
+        const monIso = isoDate(mon);
+        const sel = monIso === curMonIso ? ' week-selected' : '';
+        cells += `<div class="week-cal-cell${sel}" data-monday="${monIso}">${d}</div>`;
+      }
+      drop.innerHTML = `
+        <div class="week-cal-header">
+          <button class="week-cal-nav" onclick="calNavMonth(event,-1)">&#8249;</button>
+          <span>${MONTHS[calMonth]} ${calYear}</span>
+          <button class="week-cal-nav" onclick="calNavMonth(event,1)">&#8250;</button>
+        </div>
+        <div class="week-cal-day-hdrs">${DAYS.map(d=>`<div class="week-cal-day-hdr">${d}</div>`).join('')}</div>
+        <div class="week-cal-grid">${cells}</div>`;
+      drop.querySelectorAll('.week-cal-cell[data-monday]').forEach(cell => {
+        cell.addEventListener('mouseenter', () => {
+          drop.querySelectorAll(`.week-cal-cell[data-monday="${cell.dataset.monday}"]`).forEach(c => { if (!c.classList.contains('week-selected')) c.classList.add('week-hover'); });
+        });
+        cell.addEventListener('mouseleave', () => drop.querySelectorAll('.week-cal-cell.week-hover').forEach(c => c.classList.remove('week-hover')));
+        cell.addEventListener('click', async e => {
+          e.stopPropagation();
+          const newMon = new Date(cell.dataset.monday + 'T12:00:00');
+          const delta = Math.round((newMon - _currentMonday) / (7 * 86400000));
+          if (delta !== 0) await changeWeek(delta);
+          drop.style.display = 'none'; document.removeEventListener('click', closeCal);
+        });
+      });
+    }
+    function calNavMonth(e, dir) {
+      e.stopPropagation();
+      calMonth += dir;
+      if (calMonth < 0)  { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0;  calYear++; }
+      buildCalendar();
+    }
+    function toggleCalendar(e) {
+      e.stopPropagation();
+      const drop = document.getElementById('week-cal-drop');
+      if (drop.style.display === 'none') { buildCalendar(); drop.style.display = ''; setTimeout(() => document.addEventListener('click', closeCal), 0); }
+      else { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+    function closeCal(e) {
+      const drop = document.getElementById('week-cal-drop');
+      if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      const projects = await apiFetch('/projects/') || [];
+      _projectsById = Object.fromEntries(projects.map(p => [String(p.id), p]));
+      const qlSel = document.getElementById('ql-project');
+      if (qlSel && projects.length) {
+        qlSel.innerHTML = projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      }
+      await Promise.all([_loadWeek(_currentMonday), _loadActivity()]);
+    });
+  </script>
+
+  <!-- Quick Log FAB -->
+  <button class="quick-log-fab" id="ql-fab" onclick="openQuickLog()" title="Quick log time">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <div class="quick-log-overlay" id="ql-overlay" onclick="closeQuickLog()"></div>
+
+  <div class="quick-log-panel" id="ql-panel">
+    <div class="ql-title">
+      Quick Log Time
+      <button onclick="closeQuickLog()" style="background:none;border:none;font-size:1.4rem;line-height:1;cursor:pointer;color:var(--muted);padding:0;">×</button>
+    </div>
+    <div class="ql-grid">
+      <div>
+        <label class="ql-label">Project</label>
+        <select class="ql-input" id="ql-project">
+          <option>UX Refresh</option>
+          <option>Client Support</option>
+          <option>Operations</option>
+          <option>Internal</option>
+        </select>
+      </div>
+      <div>
+        <label class="ql-label">Task</label>
+        <input class="ql-input" type="text" id="ql-task" placeholder="e.g. Design review">
+      </div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label class="ql-label">Hours</label>
+      <div class="ql-hours-row">
+        <button class="ql-hours-btn" onclick="qlAdjust(-0.5)">−</button>
+        <span class="ql-hours-val" id="ql-hours-val">0</span>
+        <button class="ql-hours-btn" onclick="qlAdjust(0.5)">+</button>
+        <span style="font-size:0.82rem;color:var(--muted);margin-left:6px;">hours</span>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;"><label class="ql-label">Day</label></div>
+    <div class="ql-day-chips" id="ql-days"></div>
+    <button class="button" style="width:100%;padding:11px;font-size:0.9rem;" onclick="submitQuickLog()">Log Time</button>
+  </div>
+
+  <div class="toast" id="ql-toast"></div>
+
+  <script>
+    const DAY_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    let qlHours = 0, qlDay = 0;
+
+    function buildDayChips() {
+      document.getElementById('ql-days').innerHTML = DAY_SHORT.map((d, i) => {
+        const dt = new Date(_currentMonday);
+        dt.setDate(_currentMonday.getDate() + i);
+        const label = isoDate(dt).slice(5).replace('-', '/');
+        return `<button class="ql-day-chip${i === qlDay ? ' active' : ''}" onclick="qlSelectDay(${i})">${d}<br><span style="font-size:0.7rem;">${label}</span></button>`;
+      }).join('');
+    }
+
+    function qlSelectDay(i) { qlDay = i; buildDayChips(); }
+
+    function qlAdjust(delta) {
+      qlHours = Math.max(0, Math.min(16, +(qlHours + delta).toFixed(1)));
+      document.getElementById('ql-hours-val').textContent = qlHours;
+    }
+
+    function openQuickLog() {
+      qlHours = 0; qlDay = 0;
+      document.getElementById('ql-hours-val').textContent = '0';
+      document.getElementById('ql-task').value = '';
+      buildDayChips();
+      document.getElementById('ql-overlay').classList.add('open');
+      document.getElementById('ql-panel').classList.add('open');
+      document.getElementById('ql-fab').style.display = 'none';
+      setTimeout(() => document.getElementById('ql-task').focus(), 320);
+    }
+
+    function closeQuickLog() {
+      document.getElementById('ql-overlay').classList.remove('open');
+      document.getElementById('ql-panel').classList.remove('open');
+      document.getElementById('ql-fab').style.display = '';
+    }
+
+    async function submitQuickLog() {
+      if (qlHours <= 0) { qlAdjust(0.5); return; }
+      const projectId = parseInt(document.getElementById('ql-project').value);
+      const task = document.getElementById('ql-task').value.trim() || null;
+      const entryDate = new Date(_currentMonday);
+      entryDate.setDate(_currentMonday.getDate() + qlDay);
+      const t = document.getElementById('ql-toast');
+      try {
+        await apiFetch('/timesheets/entries', {
+          method: 'POST',
+          body: { project_id: projectId, task, date: isoDate(entryDate), hours: qlHours, billable: true },
+        });
+        closeQuickLog();
+        await _loadWeek(_currentMonday);
+        t.textContent = `${qlHours}h logged`;
+      } catch(e) {
+        closeQuickLog();
+        t.textContent = 'Error: ' + e.message;
+      }
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3500);
+    }
+  </script>
+</body>
+</html>

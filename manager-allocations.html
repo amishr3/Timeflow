@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Allocations</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body class="manager-theme">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+      <span class="manager-role-badge">⚙ Manager</span>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="manager-dashboard.html">Dashboard</a>
+        <a class="nav-item" href="manager-approvals.html">Approvals <span class="nav-badge" id="nav-pending-count" style="display:none;">0</span></a>
+        <a class="nav-item" href="manager-timesheets.html">Team Timesheets</a>
+        <a class="nav-item active" href="manager-allocations.html">Allocations</a>
+        <a class="nav-item" href="manager-projects.html">Projects</a>
+        <a class="nav-item" href="manager-reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Team capacity</strong>
+            <span id="sidebar-capacity">200h / week</span>
+          </div>
+          <div class="link-item">
+            <strong>Avg utilization</strong>
+            <span id="sidebar-util">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">Allocations</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Plan and manage your team's project assignments for the week.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="chip" id="chip-allocated">—</div>
+          <div class="chip" id="chip-util">—</div>
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="week-label">Apr 8 − Apr 14</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Team Allocations</h3>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size:0.85rem;">Click Edit on any member to adjust their project hours.</p>
+          </div>
+          <button class="button" style="font-size:0.82rem; padding:7px 16px;" onclick="toggleAddMember()">+ Add Member</button>
+        </div>
+
+        <!-- Add member form -->
+        <div id="add-member-wrap" style="display:none; background:var(--bg); border:1.5px solid var(--border); border-radius:12px; padding:20px; margin-bottom:16px;">
+          <div style="font-size:0.9rem; font-weight:700; color:var(--text); margin-bottom:14px;">New Team Member</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:5px;">Full Name</label>
+              <input id="nm-name" class="expense-form-input" type="text" placeholder="e.g. Jane Smith" />
+            </div>
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:5px;">Email</label>
+              <input id="nm-email" class="expense-form-input" type="email" placeholder="jane@company.com" />
+            </div>
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:5px;">Password</label>
+              <input id="nm-password" class="expense-form-input" type="password" placeholder="Set initial password" />
+            </div>
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:5px;">Role</label>
+              <select id="nm-role" class="expense-form-input">
+                <option value="employee">Employee</option>
+                <option value="manager">Manager</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:5px;">Team / Department</label>
+              <input id="nm-team" class="expense-form-input" type="text" placeholder="e.g. Design" />
+            </div>
+            <div>
+              <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:5px;">Weekly Capacity (h)</label>
+              <input id="nm-capacity" class="expense-form-input" type="number" value="40" min="1" max="80" />
+            </div>
+          </div>
+          <div id="nm-err" style="color:#dc2626; font-size:0.82rem; min-height:18px; margin-bottom:8px;"></div>
+          <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="toggleAddMember()" style="background:none; border:1.5px solid var(--border); color:var(--muted); font-size:0.85rem; padding:8px 18px; border-radius:8px; cursor:pointer; font-weight:600; font-family:inherit;">Cancel</button>
+            <button class="button" onclick="addMember()">Create Account</button>
+          </div>
+        </div>
+
+        <div id="alloc-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let _currentMonday = mondayOf();
+    let _weekAllocations = [];
+    let _allProjects = [];
+    let _loggedByUser = {};
+    let editingIdx = -1;
+    let editingOriginal = null;
+
+    async function _loadAllocations(monday) {
+      const iso = isoDate(monday);
+      try {
+        const [teamData, projects, teamTs] = await Promise.all([
+          apiFetch(`/allocations/team?week_start=${iso}`),
+          _allProjects.length ? Promise.resolve(_allProjects) : apiFetch('/projects/'),
+          apiFetch(`/timesheets/team?week_start=${iso}`).catch(() => []),
+        ]);
+        if (projects && !_allProjects.length) _allProjects = projects;
+        _loggedByUser = {};
+        (teamTs || []).forEach(m => { _loggedByUser[m.user_id] = m.total_hours || 0; });
+        _weekAllocations = (teamData || []).map(m => ({
+          user_id:  m.user_id,
+          name:     m.user_name,
+          role:     m.user_role || '',
+          capacity: m.capacity || 40,
+          projects: m.allocations.map(a => ({
+            project_id: a.project_id,
+            name:       a.project_name,
+            billable:   a.billable,
+            hours:      a.planned_hours,
+          })),
+        }));
+      } catch(_) { _weekAllocations = []; }
+      editingIdx = -1;
+      editingOriginal = null;
+      document.getElementById('week-label').textContent = weekLabel(monday);
+      renderAllocations();
+    }
+
+    async function changeWeek(dir) {
+      _currentMonday = new Date(_currentMonday);
+      _currentMonday.setDate(_currentMonday.getDate() + dir * 7);
+      await _loadAllocations(_currentMonday);
+    }
+
+    function renderAllocations() {
+      const weekData = _weekAllocations;
+      const list = document.getElementById('alloc-list');
+      list.innerHTML = '';
+
+      let totalCapacity = 0, totalAllocated = 0;
+
+      weekData.forEach((member, i) => {
+        const total = member.projects.reduce((s, p) => s + p.hours, 0);
+        totalCapacity += member.capacity;
+        totalAllocated += total;
+        const pct = Math.round((total / member.capacity) * 100);
+        const isEditing = editingIdx === i;
+        const utilClass = pct >= 100 ? 'over' : pct >= 90 ? 'warn' : '';
+
+        const card = document.createElement('div');
+        card.className = 'alloc-card';
+
+        // Project rows (view or edit)
+        let midHTML = '';
+        if (isEditing) {
+          member.projects.forEach((p, pi) => {
+            midHTML += `
+              <div class="alloc-project-row">
+                <span class="alloc-proj-name">${p.name}</span>
+                <input class="alloc-edit-input" type="number" min="0" max="80"
+                       value="${p.hours}" data-pi="${pi}"
+                       oninput="updateLiveUtil(${i})">
+                <span style="font-size:0.8rem; color:var(--muted); flex-shrink:0;">h</span>
+                <span style="font-size:0.74rem; color:${p.billable ? 'var(--accent)' : 'var(--muted)'}; flex-shrink:0;">${p.billable ? '● Billable' : '○ Non-bill'}</span>
+              </div>`;
+          });
+          // Add project picker if not all projects assigned
+          const assignedIds = new Set(member.projects.map(p => p.project_id));
+          const available = _allProjects.filter(p => !assignedIds.has(p.id));
+          if (available.length > 0) {
+            midHTML += `
+              <div class="alloc-project-row" style="margin-top:2px;">
+                <select id="add-proj-select-${i}" class="alloc-edit-input" style="width:auto; padding:3px 6px;">
+                  <option value="">+ Add project</option>
+                  ${available.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                </select>
+                <button onclick="addProject(${i})" style="font-size:0.78rem; color:var(--accent); background:none; border:1.5px solid var(--accent); border-radius:6px; padding:3px 8px; cursor:pointer;">Add</button>
+              </div>`;
+          }
+        } else {
+          member.projects.forEach(p => {
+            const barPct = Math.min(100, Math.round((p.hours / member.capacity) * 100));
+            midHTML += `
+              <div class="alloc-project-row">
+                <span class="alloc-proj-name">${p.name}</span>
+                <div class="alloc-bar-track">
+                  <div class="alloc-bar-fill${p.billable ? '' : ' nonbill'}" style="width:${barPct}%"></div>
+                </div>
+                <span class="alloc-proj-hours">${p.hours}h</span>
+              </div>`;
+          });
+          if (member.projects.length === 0) {
+            midHTML = `<span style="font-size:0.83rem; color:var(--muted);">No allocations set for this week.</span>`;
+          }
+        }
+
+        // Right column (util + actions)
+        let rightHTML = '';
+        if (isEditing) {
+          rightHTML = `
+            <div class="alloc-util-nums" id="util-nums-${i}">${total}h <span>/ ${member.capacity}h</span></div>
+            <div class="alloc-util-track"><div class="alloc-util-fill ${utilClass}" id="util-fill-${i}" style="width:${Math.min(100,pct)}%"></div></div>
+            <div class="alloc-util-pct" id="util-pct-${i}">${pct}% utilized</div>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+              <button class="button" style="font-size:0.8rem; padding:5px 12px;" onclick="saveEdit(${i})">Save</button>
+              <button class="button" style="font-size:0.8rem; padding:5px 12px; background:none; border:1.5px solid var(--border); color:var(--muted);" onclick="cancelEdit()">Cancel</button>
+            </div>`;
+        } else {
+          const logged = _loggedByUser[member.user_id];
+          const loggedHTML = logged !== undefined
+            ? `<div style="font-size:0.78rem; color:var(--muted); margin-top:3px;">Logged: <strong style="color:${logged >= total * 0.9 ? 'var(--accent)' : '#f59e0b'};">${logged}h</strong> / ${total}h planned</div>`
+            : '';
+          rightHTML = `
+            <div class="alloc-util-nums">${total}h <span>/ ${member.capacity}h</span></div>
+            <div class="alloc-util-track"><div class="alloc-util-fill ${utilClass}" style="width:${Math.min(100,pct)}%"></div></div>
+            <div class="alloc-util-pct">${pct}% allocated</div>
+            ${loggedHTML}
+            <button class="button" style="font-size:0.8rem; padding:5px 12px; background:none; border:1.5px solid var(--border); color:var(--muted); margin-top:4px;" onclick="startEdit(${i})">Edit</button>`;
+        }
+
+        card.innerHTML = `
+          <div class="alloc-card-left">
+            <div class="mgr-avatar mgr-avatar-lg">${member.name[0]}</div>
+            <div>
+              <div class="mgr-member-name">${member.name}</div>
+              <div class="mgr-member-meta">${member.role}</div>
+            </div>
+          </div>
+          <div class="alloc-card-mid">${midHTML}</div>
+          <div class="alloc-card-right">${rightHTML}</div>`;
+
+        list.appendChild(card);
+      });
+
+      // Update summary
+      const avgUtil = Math.round((totalAllocated / totalCapacity) * 100);
+      const utilClass = avgUtil >= 100 ? 'color:#dc2626' : avgUtil >= 90 ? 'color:#d97706' : 'color:var(--accent)';
+      document.getElementById('chip-allocated').textContent = totalAllocated + 'h allocated';
+      document.getElementById('chip-util').textContent = avgUtil + '% avg utilization';
+      document.getElementById('sidebar-util').textContent = avgUtil + '%';
+    }
+
+    function startEdit(i) {
+      editingIdx = i;
+      editingOriginal = JSON.parse(JSON.stringify(_weekAllocations[i].projects));
+      renderAllocations();
+    }
+
+    function cancelEdit() {
+      if (editingOriginal !== null && editingIdx >= 0) {
+        _weekAllocations[editingIdx].projects = editingOriginal;
+      }
+      editingIdx = -1;
+      editingOriginal = null;
+      renderAllocations();
+    }
+
+    async function saveEdit(i) {
+      const member = _weekAllocations[i];
+      document.querySelectorAll('.alloc-edit-input[data-pi]').forEach(inp => {
+        const pi = parseInt(inp.dataset.pi);
+        member.projects[pi].hours = Math.max(0, parseFloat(inp.value) || 0);
+      });
+      try {
+        await apiFetch('/allocations/', {
+          method: 'PUT',
+          body: {
+            user_id:     member.user_id,
+            week_start:  isoDate(_currentMonday),
+            allocations: member.projects.map(p => ({
+              project_id:    p.project_id,
+              planned_hours: p.hours,
+              billable:      p.billable,
+            })),
+          },
+        });
+      } catch(e) { console.error('Save failed:', e); }
+      editingIdx = -1;
+      editingOriginal = null;
+      await _loadAllocations(_currentMonday);
+    }
+
+    function addProject(i) {
+      const sel = document.getElementById(`add-proj-select-${i}`);
+      if (!sel || !sel.value) return;
+      const pid = parseInt(sel.value);
+      const proj = _allProjects.find(p => p.id === pid);
+      if (!proj) return;
+      _weekAllocations[i].projects.push({ project_id: proj.id, name: proj.name, billable: proj.billable !== false, hours: 0 });
+      renderAllocations();
+    }
+
+    function updateLiveUtil(i) {
+      const member = _weekAllocations[i];
+      let total = 0;
+      document.querySelectorAll('.alloc-edit-input[data-pi]').forEach(inp => {
+        total += parseFloat(inp.value) || 0;
+      });
+      const pct = Math.round((total / (member?.capacity || 40)) * 100);
+      const utilClass = pct >= 100 ? 'over' : pct >= 90 ? 'warn' : '';
+      const numsEl = document.getElementById(`util-nums-${i}`);
+      const fillEl = document.getElementById(`util-fill-${i}`);
+      const pctEl  = document.getElementById(`util-pct-${i}`);
+      if (numsEl) numsEl.innerHTML = `${total}h <span>/ ${member?.capacity || 40}h</span>`;
+      if (fillEl) { fillEl.style.width = Math.min(100, pct) + '%'; fillEl.className = `alloc-util-fill ${utilClass}`; }
+      if (pctEl)  pctEl.textContent = pct + '% utilized';
+    }
+
+    // Calendar
+    let calMonth = new Date().getMonth(), calYear = new Date().getFullYear();
+    function buildCalendar() {
+      const drop = document.getElementById('week-cal-drop');
+      const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const firstDow    = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const curMonIso   = isoDate(_currentMonday);
+      let cells = '';
+      for (let i = 0; i < firstDow; i++) cells += `<div class="week-cal-cell empty"></div>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(calYear, calMonth, d);
+        const mon = new Date(dt);
+        const dow = dt.getDay();
+        mon.setDate(d - (dow === 0 ? 6 : dow - 1));
+        const monIso = isoDate(mon);
+        const sel = monIso === curMonIso ? ' week-selected' : '';
+        cells += `<div class="week-cal-cell${sel}" data-monday="${monIso}">${d}</div>`;
+      }
+      drop.innerHTML = `
+        <div class="week-cal-header">
+          <button class="week-cal-nav" onclick="calNavMonth(event,-1)">&#8249;</button>
+          <span>${MONTHS[calMonth]} ${calYear}</span>
+          <button class="week-cal-nav" onclick="calNavMonth(event,1)">&#8250;</button>
+        </div>
+        <div class="week-cal-day-hdrs">${DAYS.map(d=>`<div class="week-cal-day-hdr">${d}</div>`).join('')}</div>
+        <div class="week-cal-grid">${cells}</div>`;
+      drop.querySelectorAll('.week-cal-cell[data-monday]').forEach(cell => {
+        cell.addEventListener('mouseenter', () => {
+          drop.querySelectorAll(`.week-cal-cell[data-monday="${cell.dataset.monday}"]`).forEach(c => { if (!c.classList.contains('week-selected')) c.classList.add('week-hover'); });
+        });
+        cell.addEventListener('mouseleave', () => drop.querySelectorAll('.week-cal-cell.week-hover').forEach(c => c.classList.remove('week-hover')));
+        cell.addEventListener('click', async e => {
+          e.stopPropagation();
+          const newMon = new Date(cell.dataset.monday + 'T12:00:00');
+          const delta = Math.round((newMon - _currentMonday) / (7 * 86400000));
+          if (delta !== 0) await changeWeek(delta);
+          drop.style.display = 'none'; document.removeEventListener('click', closeCal);
+        });
+      });
+    }
+    function calNavMonth(e, dir) {
+      e.stopPropagation();
+      calMonth += dir;
+      if (calMonth < 0)  { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0;  calYear++; }
+      buildCalendar();
+    }
+    function toggleCalendar(e) {
+      e.stopPropagation();
+      const drop = document.getElementById('week-cal-drop');
+      if (drop.style.display === 'none') { buildCalendar(); drop.style.display = ''; setTimeout(() => document.addEventListener('click', closeCal), 0); }
+      else { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+    function closeCal(e) {
+      const drop = document.getElementById('week-cal-drop');
+      if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    function toggleAddMember() {
+      const wrap = document.getElementById('add-member-wrap');
+      wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+      document.getElementById('nm-err').textContent = '';
+    }
+
+    async function addMember() {
+      const name     = document.getElementById('nm-name').value.trim();
+      const email    = document.getElementById('nm-email').value.trim();
+      const password = document.getElementById('nm-password').value;
+      const role     = document.getElementById('nm-role').value;
+      const team     = document.getElementById('nm-team').value.trim();
+      const capacity = parseFloat(document.getElementById('nm-capacity').value) || 40;
+      const errEl    = document.getElementById('nm-err');
+
+      if (!name)     { errEl.textContent = 'Name is required.'; return; }
+      if (!email)    { errEl.textContent = 'Email is required.'; return; }
+      if (!password) { errEl.textContent = 'Password is required.'; return; }
+
+      try {
+        const me = getUser();
+        await apiFetch('/auth/register', {
+          method: 'POST',
+          body: {
+            name, email, password, role,
+            team:                   team || null,
+            weekly_capacity_hours:  capacity,
+            billable_target_pct:    80.0,
+            manager_id:             me?.id || null,
+          },
+        });
+        ['nm-name','nm-email','nm-password','nm-team'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('nm-capacity').value = '40';
+        document.getElementById('add-member-wrap').style.display = 'none';
+        errEl.textContent = '';
+        await _loadAllocations(_currentMonday);
+      } catch(e) {
+        errEl.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireManagerAuth()) return;
+      await _loadAllocations(_currentMonday);
+    });
+  </script>
+</body>
+</html>

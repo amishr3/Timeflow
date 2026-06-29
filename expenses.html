@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | My Expenses</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="dashboard.html">Dashboard</a>
+        <a class="nav-item" href="timesheets.html">Timesheets</a>
+        <a class="nav-item active" href="expenses.html">Expenses</a>
+        <a class="nav-item" href="allocations.html">Allocations</a>
+        <a class="nav-item" href="projects.html">Projects</a>
+        <a class="nav-item" href="approvals.html">Approvals</a>
+        <a class="nav-item" href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>This month</strong>
+            <span id="sidebar-total">$0</span>
+          </div>
+          <div class="link-item">
+            <strong>Pending approval</strong>
+            <span id="sidebar-pending">0 items</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <div style="padding:10px 0 8px; border-top:1px solid var(--border); margin-bottom:6px;"><div style="font-size:0.72rem; color:var(--muted); margin-bottom:2px;">Signed in as</div><div class="js-user-name" style="font-size:0.85rem; font-weight:600; color:var(--text);">—</div></div><a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">My Expenses</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Submit and track reimbursable expenses for manager approval.</p>
+        </div>
+        <div class="topbar-meta">
+          <button class="button" onclick="toggleAddForm()" id="add-btn" style="font-size:0.82rem; padding:7px 16px;">+ Add Expense</button>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-label">Total this month</div>
+          <p class="summary-value" id="summ-total">$0</p>
+          <div class="summary-meta"><span id="summ-count">0 expenses</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Pending approval</div>
+          <p class="summary-value" id="summ-pending">0</p>
+          <div class="summary-meta"><span id="summ-pending-amt">$0 awaiting review</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Approved</div>
+          <p class="summary-value" id="summ-approved" style="color:var(--accent);">0</p>
+          <div class="summary-meta"><span id="summ-approved-amt">$0 reimbursed</span></div>
+        </article>
+      </section>
+
+      <!-- Expense list panel -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Expense History</h3>
+            <p style="margin:4px 0 0; color:var(--muted); font-size:0.85rem;">April 2026</p>
+          </div>
+          <div class="view-tabs">
+            <button class="view-tab active" onclick="filterExpenses('all', this)">All</button>
+            <button class="view-tab" onclick="filterExpenses('Submitted', this)">Pending</button>
+            <button class="view-tab" onclick="filterExpenses('Approved', this)">Approved</button>
+            <button class="view-tab" onclick="filterExpenses('Draft', this)">Draft</button>
+          </div>
+        </div>
+
+        <!-- Add expense form -->
+        <div class="expense-form-wrap" id="add-form-wrap">
+          <div class="expense-form-card">
+            <div style="font-size:0.9rem; font-weight:700; color:var(--text); margin-bottom:14px;">New Expense</div>
+            <div class="expense-form-grid">
+              <div>
+                <label class="expense-form-label">Date</label>
+                <input class="expense-form-input" type="date" id="ef-date">
+              </div>
+              <div>
+                <label class="expense-form-label">Category</label>
+                <select class="expense-form-input" id="ef-category">
+                  <option value="Travel">Travel</option>
+                  <option value="Meals">Meals</option>
+                  <option value="Software">Software</option>
+                  <option value="Equipment">Equipment</option>
+                  <option value="Office">Office</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div style="grid-column:1/-1;">
+                <label class="expense-form-label">Description</label>
+                <input class="expense-form-input" type="text" id="ef-desc" placeholder="e.g. Uber to client site">
+              </div>
+              <div>
+                <label class="expense-form-label">Amount ($)</label>
+                <input class="expense-form-input" type="number" id="ef-amount" min="0" step="0.01" placeholder="0.00">
+              </div>
+              <div>
+                <label class="expense-form-label">Project</label>
+                <select class="expense-form-input" id="ef-project">
+                  <option value="">No project</option>
+                </select>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; padding-top:20px;">
+                <input type="checkbox" id="ef-billable" style="width:16px; height:16px; accent-color:var(--accent); cursor:pointer;">
+                <label for="ef-billable" style="font-size:0.85rem; color:var(--text); cursor:pointer; font-weight:600;">Billable to client</label>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button onclick="toggleAddForm()" style="background:none; border:1.5px solid var(--border); color:var(--muted); font-size:0.85rem; padding:8px 18px; border-radius:8px; cursor:pointer; font-weight:600; font-family:inherit;">Cancel</button>
+              <button class="button" onclick="submitExpense()">Submit for Approval</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="expense-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const CAT_CLASS = {
+      Travel: 'expense-cat-travel', Meals: 'expense-cat-meals',
+      Software: 'expense-cat-software', Equipment: 'expense-cat-equipment',
+      Office: 'expense-cat-office', Other: 'expense-cat-other'
+    };
+    const STATUS_CLASS = { Submitted: 'status-pending', Approved: 'status-approved', Draft: 'status-draft', Rejected: 'status-draft' };
+
+    let expenses = [];
+    let _projects = [];
+
+    let currentFilter = 'all';
+
+    function filterExpenses(filter, btn) {
+      document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = filter;
+      renderExpenses();
+    }
+
+    function renderExpenses() {
+      const filtered = currentFilter === 'all' ? expenses : expenses.filter(e => e.status === currentFilter);
+      const list = document.getElementById('expense-list');
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<p style="color:var(--muted); padding:16px 0; font-size:0.9rem;">No expenses for this filter.</p>`;
+      } else {
+        list.innerHTML = filtered.map((e, i) => `
+          <div class="expense-row">
+            <span class="expense-cat-badge ${CAT_CLASS[e.category] || 'expense-cat-other'}">${e.category}</span>
+            <div class="expense-row-desc">
+              <div class="expense-row-title">${e.desc}</div>
+              <div class="expense-row-meta">${e.project} · ${e.date}${e.billable ? ' · <span style="color:var(--accent); font-weight:600;">Billable</span>' : ''}</div>
+            </div>
+            <span class="expense-amount">$${e.amount.toFixed(2)}</span>
+            <span class="status-pill ${STATUS_CLASS[e.status]}">${e.status}</span>
+            ${e.status === 'Draft' ? `<button onclick="submitDraft(${expenses.indexOf(e)})" style="font-size:0.78rem; background:none; border:1.5px solid var(--accent); color:var(--accent); padding:4px 10px; border-radius:7px; cursor:pointer; font-weight:600; font-family:inherit; white-space:nowrap;">Submit</button>` : ''}
+          </div>`).join('');
+      }
+
+      updateSummary();
+    }
+
+    function updateSummary() {
+      const total    = expenses.reduce((s, e) => s + e.amount, 0);
+      const pending  = expenses.filter(e => e.status === 'Submitted');
+      const approved = expenses.filter(e => e.status === 'Approved');
+
+      document.getElementById('summ-total').textContent       = '$' + total.toFixed(2);
+      document.getElementById('summ-count').textContent       = expenses.length + ' expense' + (expenses.length !== 1 ? 's' : '');
+      document.getElementById('summ-pending').textContent     = pending.length;
+      document.getElementById('summ-pending-amt').textContent = '$' + pending.reduce((s,e) => s+e.amount, 0).toFixed(2) + ' awaiting review';
+      document.getElementById('summ-approved').textContent    = approved.length;
+      document.getElementById('summ-approved-amt').textContent= '$' + approved.reduce((s,e) => s+e.amount, 0).toFixed(2) + ' reimbursed';
+      document.getElementById('sidebar-total').textContent    = '$' + total.toFixed(2);
+      document.getElementById('sidebar-pending').textContent  = pending.length + ' item' + (pending.length !== 1 ? 's' : '');
+    }
+
+    function toggleAddForm() {
+      const wrap = document.getElementById('add-form-wrap');
+      const btn  = document.getElementById('add-btn');
+      const isOpen = wrap.classList.contains('open');
+      wrap.classList.toggle('open');
+      btn.textContent = isOpen ? '+ Add Expense' : '✕ Cancel';
+      if (!isOpen) {
+        document.getElementById('ef-date').value = isoDate(new Date());
+        document.getElementById('ef-desc').focus();
+      }
+    }
+
+    async function submitExpense() {
+      const desc     = document.getElementById('ef-desc').value.trim();
+      const amount   = parseFloat(document.getElementById('ef-amount').value);
+      const dateVal  = document.getElementById('ef-date').value.trim();
+      if (!desc)            { document.getElementById('ef-desc').focus(); return; }
+      if (!amount || amount <= 0) { document.getElementById('ef-amount').focus(); return; }
+      if (!dateVal)         { document.getElementById('ef-date').focus(); return; }
+
+      try {
+        const projVal = document.getElementById('ef-project').value;
+        const created = await apiFetch('/expenses/', {
+          method: 'POST',
+          body: {
+            date:        dateVal,
+            category:    document.getElementById('ef-category').value.toLowerCase(),
+            description: desc,
+            amount,
+            billable:    document.getElementById('ef-billable').checked,
+            project_id:  projVal ? parseInt(projVal) : null,
+          }
+        });
+        if (created) {
+          await apiFetch(`/expenses/${created.id}/submit`, { method: 'POST' });
+        }
+        ['ef-date','ef-desc','ef-amount'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('ef-billable').checked = false;
+        toggleAddForm();
+        await _loadExpenses();
+        showToast('Expense submitted for approval');
+      } catch(e) { showToast('Error: ' + e.message); }
+    }
+
+    async function submitDraft(i) {
+      const exp = expenses[i];
+      if (!exp?.id) return;
+      try {
+        await apiFetch(`/expenses/${exp.id}/submit`, { method: 'POST' });
+        await _loadExpenses();
+        showToast('Expense submitted for approval');
+      } catch(e) { showToast('Error: ' + e.message); }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    async function _loadExpenses() {
+      const data = await apiFetch('/expenses/');
+      const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+      expenses = (data || []).map(e => ({
+        id:       e.id,
+        date:     e.date,
+        category: cap(e.category),
+        desc:     e.description,
+        amount:   e.amount,
+        billable: e.billable,
+        project:  e.project_name || 'N/A',
+        status:   cap(e.status),
+      }));
+      renderExpenses();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      const projects = await apiFetch('/projects/').catch(() => []);
+      _projects = projects || [];
+      const sel = document.getElementById('ef-project');
+      if (_projects.length) {
+        sel.innerHTML = '<option value="">No project</option>' +
+          _projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      }
+      await _loadExpenses();
+    });
+  </script>
+</body>
+</html>

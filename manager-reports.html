@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Reports</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body class="manager-theme">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+      <span class="manager-role-badge">⚙ Manager</span>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="manager-dashboard.html">Dashboard</a>
+        <a class="nav-item" href="manager-approvals.html">Approvals <span class="nav-badge" id="nav-pending-count" style="display:none;">0</span></a>
+        <a class="nav-item" href="manager-timesheets.html">Team Timesheets</a>
+        <a class="nav-item" href="manager-expenses.html">Expenses</a>
+        <a class="nav-item" href="manager-allocations.html">Allocations</a>
+        <a class="nav-item" href="manager-projects.html">Projects</a>
+        <a class="nav-item active" href="manager-reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Team utilization</strong>
+            <span id="sb-util">—</span>
+          </div>
+          <div class="link-item">
+            <strong>Total logged</strong>
+            <span id="sb-total">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">Reports</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Team-wide hours, utilization, and project breakdown.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="week-label">—</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+          <div class="chip" id="team-size-chip">— members</div>
+          <button class="button" onclick="exportCSV()" style="font-size:0.82rem; padding:7px 16px;">Export CSV</button>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-label">Team hours logged</div>
+          <p class="summary-value" id="rpt-hours-val">—</p>
+          <div class="summary-meta" id="rpt-hours-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Avg billable utilization</div>
+          <p class="summary-value" id="rpt-util-val">—</p>
+          <div class="summary-meta" id="rpt-util-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Approved timesheets</div>
+          <p class="summary-value" id="rpt-approved-val">—</p>
+          <div class="summary-meta" id="rpt-approved-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Overtime</div>
+          <p class="summary-value" id="rpt-overtime-val">—</p>
+          <div class="summary-meta" id="rpt-overtime-meta"><span>—</span></div>
+        </article>
+      </section>
+
+      <!-- Hours by project -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Hours by project</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Total team hours per project this week.</p>
+          </div>
+        </div>
+        <div class="chart-bars" id="project-chart"></div>
+      </section>
+
+      <!-- Team utilization table -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Team utilization</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Billable hours vs target per member.</p>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Target</th>
+                <th>Logged</th>
+                <th>Billable</th>
+                <th>Utilization</th>
+                <th>Timesheet</th>
+              </tr>
+            </thead>
+            <tbody id="util-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Billable vs non-billable -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Billable vs Non-billable</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Split across the full team this week.</p>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:24px; align-items:start;">
+          <div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <span style="font-size:0.85rem; font-weight:600; color:#102a43;">Billable</span>
+                  <span id="rpt-billable-lbl" style="font-size:0.85rem; font-weight:700; color:var(--accent);">—</span>
+                </div>
+                <div style="height:10px; background:var(--border); border-radius:6px; overflow:hidden;">
+                  <div id="rpt-billable-bar" style="height:100%; width:0%; background:var(--accent); border-radius:6px;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <span style="font-size:0.85rem; font-weight:600; color:#102a43;">Non-billable</span>
+                  <span id="rpt-nonbillable-lbl" style="font-size:0.85rem; font-weight:700; color:var(--muted);">—</span>
+                </div>
+                <div style="height:10px; background:var(--border); border-radius:6px; overflow:hidden;">
+                  <div id="rpt-nonbillable-bar" style="height:100%; width:0%; background:#94a3b8; border-radius:6px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Summary</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Total logged</span><strong id="rpt-summary-total">—</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Billable</span><strong id="rpt-summary-bill" style="color:var(--accent);">—</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Non-billable</span><strong id="rpt-summary-nonbill">—</strong></div>
+            <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Avg utilization</span><strong id="rpt-summary-util" style="color:var(--accent);">—</strong></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let _currentMonday = mondayOf();
+    let _util = [], _projs = [], _teamTs = [];
+
+    const STATUS_DISPLAY = { not_started: 'Not Started', draft: 'Draft', submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected' };
+    const statusClass    = { Submitted: 'status-pending', Approved: 'status-approved', Rejected: 'status-draft', Draft: 'status-draft', 'Not Started': 'status-draft' };
+    const TARGET_UTIL    = 85;
+
+    async function _loadReports(monday) {
+      const iso = isoDate(monday);
+      const sun = new Date(monday);
+      sun.setDate(sun.getDate() + 6);
+      const sunIso = isoDate(sun);
+
+      const [utilData, projData, teamTs] = await Promise.all([
+        apiFetch(`/reports/utilization?from_date=${iso}&to_date=${sunIso}`).catch(() => []),
+        apiFetch(`/reports/projects?from_date=${iso}&to_date=${sunIso}`).catch(() => []),
+        apiFetch(`/timesheets/team?week_start=${iso}`).catch(() => []),
+      ]);
+
+      const util  = utilData || [];
+      const projs = projData || [];
+      const team  = teamTs  || [];
+      _util = util; _projs = projs; _teamTs = team;
+
+      // Build status map from team timesheets
+      const statusMap = {};
+      team.forEach(m => { statusMap[m.user_name] = STATUS_DISPLAY[m.status?.toLowerCase()] || 'Not Started'; });
+
+      // Aggregates
+      const totalHours    = +util.reduce((s, m) => s + m.total_hours, 0).toFixed(1);
+      const billableHours = +util.reduce((s, m) => s + m.billable_hours, 0).toFixed(1);
+      const nonBill       = +(totalHours - billableHours).toFixed(1);
+      const billPct       = totalHours > 0 ? Math.round((billableHours / totalHours) * 100) : 0;
+      const nonBillPct    = 100 - billPct;
+      const capacity      = +util.reduce((s, m) => s + m.capacity_hours, 0).toFixed(1);
+      const avgUtil       = util.length > 0 ? Math.round(util.reduce((s, m) => s + m.billable_utilization_pct, 0) / util.length) : 0;
+      const gap           = TARGET_UTIL - avgUtil;
+      const approved      = team.filter(m => m.status === 'approved').length;
+      const pending       = team.filter(m => m.status === 'submitted').length;
+      const rejected      = team.filter(m => m.status === 'rejected').length;
+      const overtimers    = util.filter(m => m.total_hours > m.capacity_hours);
+      const overtimeTotal = +overtimers.reduce((s, m) => s + (m.total_hours - m.capacity_hours), 0).toFixed(1);
+
+      // Header
+      document.getElementById('week-label').textContent     = weekLabel(monday);
+      document.getElementById('team-size-chip').textContent = util.length + ' members';
+
+      // Sidebar
+      document.getElementById('sb-util').textContent  = avgUtil + '%';
+      document.getElementById('sb-total').textContent = totalHours + 'h';
+
+      // Summary cards
+      document.getElementById('rpt-hours-val').textContent  = totalHours + 'h';
+      document.getElementById('rpt-hours-meta').innerHTML   = capacity > 0
+        ? `<span>Capacity: ${capacity}h</span><span>${Math.round(totalHours / capacity * 100)}% logged</span>`
+        : '<span>—</span>';
+
+      document.getElementById('rpt-util-val').textContent   = avgUtil + '%';
+      document.getElementById('rpt-util-meta').innerHTML    = gap > 0
+        ? `<span>Target: ${TARGET_UTIL}%</span><span style="color:#f59e0b;">↓ ${gap}% gap</span>`
+        : `<span>Target: ${TARGET_UTIL}%</span><span style="color:#16a34a;">↑ ${Math.abs(gap)}% above</span>`;
+
+      document.getElementById('rpt-approved-val').textContent = `${approved} / ${util.length}`;
+      document.getElementById('rpt-approved-meta').innerHTML  = `<span>${pending} pending</span><span>${rejected} rejected</span>`;
+
+      document.getElementById('rpt-overtime-val').textContent = overtimeTotal > 0 ? overtimeTotal + 'h' : '0h';
+      document.getElementById('rpt-overtime-meta').innerHTML  = overtimers.length > 0
+        ? `<span>${overtimers.map(m => m.user_name.split(' ')[0]).join(', ')}</span>`
+        : '<span style="color:#16a34a;">No overtime</span>';
+
+      // Project chart
+      const chartEl    = document.getElementById('project-chart');
+      chartEl.innerHTML = '';
+      const activeProjs = projs.filter(p => p.total_hours > 0).sort((a, b) => b.total_hours - a.total_hours);
+      if (activeProjs.length === 0) {
+        chartEl.innerHTML = '<div style="color:var(--muted); font-size:0.9rem; padding:8px 0;">No project hours logged this week.</div>';
+      } else {
+        const maxH = Math.max(...activeProjs.map(p => p.total_hours));
+        activeProjs.forEach(p => {
+          const pct = Math.round((p.total_hours / maxH) * 100);
+          const row = document.createElement('div');
+          row.className = 'chart-row';
+          row.innerHTML = `
+            <span style="font-size:0.85rem; font-weight:600; color:#102a43;">${p.project_name}</span>
+            <div class="chart-bar"><div class="chart-fill" style="width:${pct}%"></div></div>
+            <span style="font-size:0.85rem; font-weight:700; color:var(--accent);">${p.total_hours}h</span>`;
+          chartEl.appendChild(row);
+        });
+      }
+
+      // Team utilization table
+      const tbody = document.getElementById('util-table');
+      tbody.innerHTML = '';
+      if (util.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted); text-align:center; padding:16px;">No team data for this week.</td></tr>';
+      } else {
+        util.forEach(m => {
+          const utilPct   = Math.round(m.billable_utilization_pct);
+          const onTarget  = utilPct >= m.target_pct;
+          const status    = statusMap[m.user_name] || 'Not Started';
+          const barColor  = onTarget ? 'var(--accent)' : '#f59e0b';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="mgr-avatar" style="width:28px; height:28px; font-size:0.75rem;">${m.user_name[0]}</div>
+                <strong>${m.user_name}</strong>
+              </div>
+            </td>
+            <td style="color:var(--muted); font-size:0.85rem;">${m.target_pct}%</td>
+            <td><strong>${m.total_hours}h</strong></td>
+            <td style="color:var(--accent); font-weight:600;">${m.billable_hours}h</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="flex:1; height:6px; background:var(--border); border-radius:3px; min-width:60px; overflow:hidden;">
+                  <div style="height:100%; width:${Math.min(utilPct, 100)}%; background:${barColor}; border-radius:3px;"></div>
+                </div>
+                <span style="font-size:0.82rem; font-weight:700; min-width:32px; color:${onTarget ? 'inherit' : '#f59e0b'};">${utilPct}%</span>
+              </div>
+            </td>
+            <td><span class="status-pill ${statusClass[status] || 'status-draft'}">${status}</span></td>`;
+          tbody.appendChild(tr);
+        });
+      }
+
+      // Billable vs non-billable bars
+      document.getElementById('rpt-billable-bar').style.width    = billPct + '%';
+      document.getElementById('rpt-nonbillable-bar').style.width = nonBillPct + '%';
+      document.getElementById('rpt-billable-lbl').textContent    = `${billableHours}h (${billPct}%)`;
+      document.getElementById('rpt-nonbillable-lbl').textContent = `${nonBill}h (${nonBillPct}%)`;
+      document.getElementById('rpt-summary-total').textContent   = totalHours + 'h';
+      document.getElementById('rpt-summary-bill').textContent    = billableHours + 'h';
+      document.getElementById('rpt-summary-nonbill').textContent = nonBill + 'h';
+      document.getElementById('rpt-summary-util').textContent    = avgUtil + '%';
+    }
+
+    function exportCSV() {
+      if (!_util.length && !_projs.length) { alert('No data loaded yet.'); return; }
+      const week = document.getElementById('week-label').textContent;
+      const lines = [`TimeFlow Report,${week}`, ''];
+
+      lines.push('Team Utilization');
+      lines.push('Member,Target %,Total Hours,Billable Hours,Utilization %,Status');
+      const statusMap = {};
+      _teamTs.forEach(m => { statusMap[m.user_name] = STATUS_DISPLAY[m.status?.toLowerCase()] || 'Not Started'; });
+      _util.forEach(m => {
+        const st = statusMap[m.user_name] || 'Not Started';
+        lines.push(`"${m.user_name}",${m.target_pct},${m.total_hours},${m.billable_hours},${Math.round(m.billable_utilization_pct)},"${st}"`);
+      });
+
+      lines.push('');
+      lines.push('Hours by Project');
+      lines.push('Project,Total Hours');
+      _projs.filter(p => p.total_hours > 0).sort((a, b) => b.total_hours - a.total_hours).forEach(p => {
+        lines.push(`"${p.project_name}",${p.total_hours}`);
+      });
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob),
+        download: `timeflow-report-${isoDate(new Date())}.csv`,
+      });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    async function changeWeek(dir) {
+      _currentMonday = new Date(_currentMonday);
+      _currentMonday.setDate(_currentMonday.getDate() + dir * 7);
+      await _loadReports(_currentMonday);
+    }
+
+    // Calendar
+    let calMonth = new Date().getMonth(), calYear = new Date().getFullYear();
+    function buildCalendar() {
+      const drop = document.getElementById('week-cal-drop');
+      const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const firstDow    = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const curMonIso   = isoDate(_currentMonday);
+      let cells = '';
+      for (let i = 0; i < firstDow; i++) cells += `<div class="week-cal-cell empty"></div>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt  = new Date(calYear, calMonth, d);
+        const mon = new Date(dt);
+        const dow = dt.getDay();
+        mon.setDate(d - (dow === 0 ? 6 : dow - 1));
+        const monIso = isoDate(mon);
+        const sel    = monIso === curMonIso ? ' week-selected' : '';
+        cells += `<div class="week-cal-cell${sel}" data-monday="${monIso}">${d}</div>`;
+      }
+      drop.innerHTML = `
+        <div class="week-cal-header">
+          <button class="week-cal-nav" onclick="calNavMonth(event,-1)">&#8249;</button>
+          <span>${MONTHS[calMonth]} ${calYear}</span>
+          <button class="week-cal-nav" onclick="calNavMonth(event,1)">&#8250;</button>
+        </div>
+        <div class="week-cal-day-hdrs">${DAYS.map(d=>`<div class="week-cal-day-hdr">${d}</div>`).join('')}</div>
+        <div class="week-cal-grid">${cells}</div>`;
+      drop.querySelectorAll('.week-cal-cell[data-monday]').forEach(cell => {
+        cell.addEventListener('mouseenter', () => {
+          drop.querySelectorAll(`.week-cal-cell[data-monday="${cell.dataset.monday}"]`).forEach(c => { if (!c.classList.contains('week-selected')) c.classList.add('week-hover'); });
+        });
+        cell.addEventListener('mouseleave', () => drop.querySelectorAll('.week-cal-cell.week-hover').forEach(c => c.classList.remove('week-hover')));
+        cell.addEventListener('click', async e => {
+          e.stopPropagation();
+          const newMon = new Date(cell.dataset.monday + 'T12:00:00');
+          const delta  = Math.round((newMon - _currentMonday) / (7 * 86400000));
+          if (delta !== 0) await changeWeek(delta);
+          drop.style.display = 'none'; document.removeEventListener('click', closeCal);
+        });
+      });
+    }
+    function calNavMonth(e, dir) {
+      e.stopPropagation();
+      calMonth += dir;
+      if (calMonth < 0)  { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0;  calYear++; }
+      buildCalendar();
+    }
+    function toggleCalendar(e) {
+      e.stopPropagation();
+      const drop = document.getElementById('week-cal-drop');
+      if (drop.style.display === 'none') {
+        calMonth = _currentMonday.getMonth(); calYear = _currentMonday.getFullYear();
+        buildCalendar(); drop.style.display = '';
+        setTimeout(() => document.addEventListener('click', closeCal), 0);
+      } else { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+    function closeCal(e) {
+      const drop = document.getElementById('week-cal-drop');
+      if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireManagerAuth()) return;
+      await _loadReports(_currentMonday);
+    });
+  </script>
+</body>
+</html>

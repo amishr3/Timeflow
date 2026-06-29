@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Team Expenses</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body class="manager-theme">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+      <span class="manager-role-badge">⚙ Manager</span>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="manager-dashboard.html">Dashboard</a>
+        <a class="nav-item" href="manager-approvals.html">Approvals <span class="nav-badge" id="nav-pending-count" style="display:none;">0</span></a>
+        <a class="nav-item" href="manager-timesheets.html">Team Timesheets</a>
+        <a class="nav-item active" href="manager-expenses.html">Expenses <span class="nav-badge" id="nav-pending-badge">3</span></a>
+        <a class="nav-item" href="manager-allocations.html">Allocations</a>
+        <a class="nav-item" href="manager-projects.html">Projects</a>
+        <a class="nav-item" href="manager-reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Pending review</strong>
+            <span id="sidebar-pending">3 items</span>
+          </div>
+          <div class="link-item">
+            <strong>Total submitted</strong>
+            <span id="sidebar-total">$0</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">Team Expenses</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Review and approve expense submissions from your team.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="chip" id="pending-chip">3 pending</div>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-label">Total submitted</div>
+          <p class="summary-value" id="summ-total">$0</p>
+          <div class="summary-meta"><span id="summ-count">0 expenses</span><span>April 2026</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Pending approval</div>
+          <p class="summary-value" id="summ-pending">0</p>
+          <div class="summary-meta"><span id="summ-pending-amt">$0 to review</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Approved this month</div>
+          <p class="summary-value" id="summ-approved" style="color:var(--accent);">0</p>
+          <div class="summary-meta"><span id="summ-approved-amt">$0</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Billable expenses</div>
+          <p class="summary-value" id="summ-billable">$0</p>
+          <div class="summary-meta"><span id="summ-billable-meta">Chargeable to clients</span></div>
+        </article>
+      </section>
+
+      <!-- Expense list -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Expense Submissions</h3>
+            <p style="margin:4px 0 0; color:var(--muted); font-size:0.85rem;" id="count-label">Loading…</p>
+          </div>
+          <div class="view-tabs">
+            <button class="view-tab active" onclick="filterExpenses('all', this)">All</button>
+            <button class="view-tab" onclick="filterExpenses('Submitted', this)">Pending</button>
+            <button class="view-tab" onclick="filterExpenses('Approved', this)">Approved</button>
+            <button class="view-tab" onclick="filterExpenses('Rejected', this)">Rejected</button>
+          </div>
+        </div>
+        <div id="expense-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const CAT_CLASS = {
+      Travel: 'expense-cat-travel', Meals: 'expense-cat-meals',
+      Software: 'expense-cat-software', Equipment: 'expense-cat-equipment',
+      Office: 'expense-cat-office', Other: 'expense-cat-other'
+    };
+    const STATUS_CLASS = { Submitted: 'status-pending', Approved: 'status-approved', Rejected: 'status-draft' };
+
+    let expenses = [];
+
+    let currentFilter = 'all';
+
+    function filterExpenses(filter, btn) {
+      document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = filter;
+      renderExpenses();
+    }
+
+    function renderExpenses() {
+      const filtered = currentFilter === 'all' ? expenses : expenses.filter(e => e.status === currentFilter);
+      const list = document.getElementById('expense-list');
+      list.innerHTML = '';
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<p style="color:var(--muted); padding:16px 0; font-size:0.9rem;">No expenses for this filter.</p>`;
+        document.getElementById('count-label').textContent = '0 entries';
+        updateSummary();
+        return;
+      }
+
+      filtered.forEach((e, i) => {
+        const realIdx = expenses.indexOf(e);
+        const card = document.createElement('div');
+        card.className = 'mgr-approval-card';
+        card.innerHTML = `
+          <div class="mgr-approval-card-left">
+            <div class="mgr-avatar mgr-avatar-lg">${e.member[0]}</div>
+            <div>
+              <div class="mgr-member-name">${e.member}</div>
+              <div class="mgr-member-meta">${e.role}</div>
+            </div>
+          </div>
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="expense-cat-badge ${CAT_CLASS[e.category] || 'expense-cat-other'}">${e.category}</span>
+              <span style="font-size:0.88rem; font-weight:600; color:var(--text);">${e.desc}</span>
+            </div>
+            <div style="font-size:0.78rem; color:var(--muted);">${e.project} · ${e.date}${e.billable ? ' · <span style="color:var(--accent); font-weight:600;">Billable</span>' : ''}</div>
+          </div>
+          <div class="mgr-approval-card-right" style="flex-direction:row; align-items:center; gap:16px;">
+            <span style="font-size:1.05rem; font-weight:800; color:var(--text);">$${e.amount.toFixed(2)}</span>
+            <span class="status-pill ${STATUS_CLASS[e.status]}" id="pill-${realIdx}">${e.status}</span>
+            <div id="actions-${realIdx}">
+              ${e.status === 'Submitted' ? `
+                <div style="display:flex; gap:6px;">
+                  <button class="button btn-approve" onclick="approveExpense(${realIdx})" style="font-size:0.8rem; padding:5px 12px;">Approve</button>
+                  <button class="button btn-reject"  onclick="rejectExpense(${realIdx})"  style="font-size:0.8rem; padding:5px 12px;">Reject</button>
+                </div>` : e.status === 'Approved'
+                  ? `<span style="font-size:0.82rem; color:#16a34a; font-weight:600;">✓ Approved</span>`
+                  : e.status === 'Rejected'
+                  ? `<span style="font-size:0.82rem; color:#dc2626; font-weight:600;">✗ Rejected</span>`
+                  : ''}
+            </div>
+          </div>`;
+        list.appendChild(card);
+      });
+
+      document.getElementById('count-label').textContent = `${filtered.length} expense${filtered.length !== 1 ? 's' : ''}`;
+      updateSummary();
+    }
+
+    async function approveExpense(i) {
+      if (!expenses[i]?.id) return;
+      try {
+        await apiFetch(`/expenses/${expenses[i].id}/approve`, { method: 'POST' });
+        await _loadExpenses();
+      } catch(e) { console.error(e); }
+    }
+
+    async function rejectExpense(i) {
+      if (!expenses[i]?.id) return;
+      const note = prompt('Rejection reason (optional):') ?? null;
+      try {
+        await apiFetch(`/expenses/${expenses[i].id}/reject`, { method: 'POST', body: { reject_note: note } });
+        await _loadExpenses();
+      } catch(e) { alert('Could not reject: ' + e.message); }
+    }
+
+    function updateSummary() {
+      const all      = expenses;
+      const pending  = all.filter(e => e.status === 'Submitted');
+      const approved = all.filter(e => e.status === 'Approved');
+      const billable = all.filter(e => e.billable && e.status === 'Approved');
+      const total    = all.reduce((s, e) => s + e.amount, 0);
+      const pendAmt  = pending.reduce((s, e) => s + e.amount, 0);
+      const appAmt   = approved.reduce((s, e) => s + e.amount, 0);
+      const billAmt  = billable.reduce((s, e) => s + e.amount, 0);
+      const n = pending.length;
+
+      document.getElementById('summ-total').textContent       = '$' + total.toFixed(2);
+      document.getElementById('summ-count').textContent       = all.length + ' expense' + (all.length !== 1 ? 's' : '');
+      document.getElementById('summ-pending').textContent     = pending.length;
+      document.getElementById('summ-pending-amt').textContent = '$' + pendAmt.toFixed(2) + ' to review';
+      document.getElementById('summ-approved').textContent    = approved.length;
+      document.getElementById('summ-approved-amt').textContent= '$' + appAmt.toFixed(2);
+      document.getElementById('summ-billable').textContent    = '$' + billAmt.toFixed(2);
+      document.getElementById('sidebar-pending').textContent  = n + ' item' + (n !== 1 ? 's' : '');
+      document.getElementById('sidebar-total').textContent    = '$' + total.toFixed(2);
+      document.getElementById('pending-chip').textContent     = n + ' pending';
+      const badge = document.getElementById('nav-pending-badge');
+      badge.textContent = n;
+      badge.style.display = n === 0 ? 'none' : '';
+    }
+
+    async function _loadExpenses() {
+      const data = await apiFetch('/expenses/team') || [];
+      const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+      expenses = data.map(e => ({
+        id:       e.id,
+        member:   e.user_name || 'Unknown',
+        role:     '',
+        date:     e.date,
+        category: cap(e.category),
+        desc:     e.description,
+        amount:   e.amount,
+        billable: e.billable,
+        project:  e.project_name || 'N/A',
+        status:   cap(e.status),
+      }));
+      renderExpenses();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireManagerAuth()) return;
+      await _loadExpenses();
+    });
+  </script>
+</body>
+</html>

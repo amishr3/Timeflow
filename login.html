@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Sign In</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg); margin:0; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:40px 36px; width:100%; max-width:380px; box-shadow:0 4px 24px rgba(0,0,0,.12); }
+    .login-brand { display:flex; align-items:center; gap:12px; margin-bottom:32px; }
+    .login-brand-mark { width:40px; height:40px; border-radius:10px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.2rem; }
+    .login-brand h1 { font-size:1.3rem; font-weight:800; color:var(--text); margin:0; }
+    .login-brand p { font-size:0.78rem; color:var(--muted); margin:0; }
+    .login-field { margin-bottom:16px; }
+    .login-label { display:block; font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:6px; }
+    .login-input { width:100%; box-sizing:border-box; padding:10px 14px; border:1.5px solid var(--border); border-radius:9px; background:var(--bg); color:var(--text); font-size:0.9rem; font-family:inherit; outline:none; transition:border-color .15s; }
+    .login-input:focus { border-color:var(--accent); }
+    .login-btn { width:100%; padding:11px; background:var(--accent); color:#fff; border:none; border-radius:9px; font-size:0.95rem; font-weight:700; font-family:inherit; cursor:pointer; margin-top:8px; transition:opacity .15s; }
+    .login-btn:hover { opacity:.88; }
+    .login-err { color:#dc2626; font-size:0.82rem; margin-top:10px; min-height:18px; text-align:center; }
+    .login-hint { margin-top:20px; font-size:0.78rem; color:var(--muted); background:var(--bg); border-radius:8px; padding:10px 14px; line-height:1.7; }
+    .login-hint strong { color:var(--text); }
+    .login-role-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 8px; border:2px solid var(--border); border-radius:10px; background:var(--bg); cursor:pointer; font-family:inherit; color:var(--text); transition:border-color .15s, background .15s; }
+    .login-role-btn:hover { border-color:var(--accent); }
+    .login-role-btn.active { border-color:var(--accent); background:rgba(15,118,110,.08); }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-mark">T</div>
+      <div>
+        <h1>TimeFlow</h1>
+        <p>Timesheet prototype</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:20px;">
+      <button class="login-role-btn" id="role-employee" onclick="selectRole('employee')">
+        <span style="font-size:1.1rem;">👤</span>
+        <span style="font-weight:700; font-size:0.88rem;">Employee</span>
+        <span style="font-size:0.74rem; color:var(--muted);">Log time & expenses</span>
+      </button>
+      <button class="login-role-btn" id="role-manager" onclick="selectRole('manager')">
+        <span style="font-size:1.1rem;">⚙</span>
+        <span style="font-weight:700; font-size:0.88rem;">Manager</span>
+        <span style="font-size:0.74rem; color:var(--muted);">Approve & allocate</span>
+      </button>
+    </div>
+
+    <div class="login-field">
+      <label class="login-label" for="l-email">Email</label>
+      <input class="login-input" id="l-email" type="email" placeholder="you@timeflow.dev" autocomplete="email" />
+    </div>
+    <div class="login-field">
+      <label class="login-label" for="l-pass">Password</label>
+      <input class="login-input" id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+
+    <button class="login-btn" id="l-btn" onclick="doLogin()">Sign in</button>
+    <div class="login-err" id="l-err"></div>
+
+    <div class="login-hint">
+      Demo password: <code>password123</code> for all accounts
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    // If already logged in, redirect
+    if (getToken()) {
+      const u = getUser();
+      window.location.href = u?.role === 'manager' ? 'manager-dashboard.html' : 'dashboard.html';
+    }
+
+    function selectRole(role) {
+      document.getElementById('role-employee').classList.toggle('active', role === 'employee');
+      document.getElementById('role-manager').classList.toggle('active', role === 'manager');
+      document.getElementById('l-email').value = role === 'manager' ? 'alex@timeflow.dev' : 'priya@timeflow.dev';
+      document.getElementById('l-pass').value  = 'password123';
+      document.getElementById('l-err').textContent = '';
+    }
+
+    // Default to employee
+    selectRole('employee');
+
+    document.getElementById('l-pass').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    async function doLogin() {
+      const email    = document.getElementById('l-email').value.trim();
+      const password = document.getElementById('l-pass').value;
+      const errEl    = document.getElementById('l-err');
+      const btn      = document.getElementById('l-btn');
+
+      errEl.textContent = '';
+      if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+
+      try {
+        const data = await apiFetch('/auth/login', {
+          method: 'POST',
+          body: { email, password }
+        });
+        if (!data) return;
+        setToken(data.access_token);
+        setUser(data.user);
+        window.location.href = data.user.role === 'manager' ? 'manager-dashboard.html' : 'dashboard.html';
+      } catch (e) {
+        errEl.textContent = 'Invalid email or password.';
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    }
+  </script>
+</body>
+</html>

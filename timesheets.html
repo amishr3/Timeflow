@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Timesheets</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="dashboard.html">Dashboard</a>
+        <a class="nav-item active" href="timesheets.html">Timesheets</a>
+        <a class="nav-item" href="expenses.html">Expenses</a>
+        <a class="nav-item" href="allocations.html">Allocations</a>
+        <a class="nav-item" href="projects.html">Projects</a>
+        <a class="nav-item" href="approvals.html">Approvals</a>
+        <a class="nav-item" href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Billable this week</strong>
+            <span id="sidebar-billable">—</span>
+          </div>
+          <div class="link-item">
+            <strong>Utilization</strong>
+            <span id="sidebar-util">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <div style="padding:10px 0 8px; border-top:1px solid var(--border); margin-bottom:6px;"><div style="font-size:0.72rem; color:var(--muted); margin-bottom:2px;">Signed in as</div><div class="js-user-name" style="font-size:0.85rem; font-weight:600; color:var(--text);">—</div></div><a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">Timesheets</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Enter hours, assign projects, and submit for approval.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="week-nav" id="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="week-label">Apr 8 − Apr 14</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+          <span class="status-pill status-draft" id="ts-status-badge">Not Submitted</span>
+        </div>
+      </section>
+
+      <!-- Timesheet grid panel -->
+      <section class="panel ts-panel">
+        <div class="panel-header">
+          <h3>Weekly Timesheet</h3>
+          <div class="view-tabs">
+            <button class="view-tab active" onclick="switchView('week', this)">Week</button>
+            <button class="view-tab" onclick="switchView('month', this)">Month</button>
+          </div>
+        </div>
+
+        <!-- Week grid view -->
+        <div id="ts-grid-view">
+          <div class="ts-grid-wrapper">
+            <table class="ts-grid">
+              <thead>
+                <tr>
+                  <th class="ts-project-col">Project / Task</th>
+                  <th><span id="ts-hdr-name-0" class="ts-hdr-day">Mon</span><span id="ts-hdr-date-0" class="ts-hdr-date">Apr 8</span></th>
+                  <th><span id="ts-hdr-name-1" class="ts-hdr-day">Tue</span><span id="ts-hdr-date-1" class="ts-hdr-date">Apr 9</span></th>
+                  <th><span id="ts-hdr-name-2" class="ts-hdr-day">Wed</span><span id="ts-hdr-date-2" class="ts-hdr-date">Apr 10</span></th>
+                  <th><span id="ts-hdr-name-3" class="ts-hdr-day">Thu</span><span id="ts-hdr-date-3" class="ts-hdr-date">Apr 11</span></th>
+                  <th><span id="ts-hdr-name-4" class="ts-hdr-day">Fri</span><span id="ts-hdr-date-4" class="ts-hdr-date">Apr 12</span></th>
+                  <th class="ts-weekend-col"><span id="ts-hdr-name-5" class="ts-hdr-day">Sat</span><span id="ts-hdr-date-5" class="ts-hdr-date">Apr 13</span></th>
+                  <th class="ts-weekend-col"><span id="ts-hdr-name-6" class="ts-hdr-day">Sun</span><span id="ts-hdr-date-6" class="ts-hdr-date">Apr 14</span></th>
+                  <th class="ts-total-col">Total</th>
+                  <th class="ts-delete-col"></th>
+                </tr>
+              </thead>
+              <tbody id="ts-body"></tbody>
+              <tfoot>
+                <tr class="ts-footer-row">
+                  <td class="ts-footer-label">Daily Total</td>
+                  <td id="ts-col-total-0">—</td>
+                  <td id="ts-col-total-1">—</td>
+                  <td id="ts-col-total-2">—</td>
+                  <td id="ts-col-total-3">—</td>
+                  <td id="ts-col-total-4">—</td>
+                  <td id="ts-col-total-5">—</td>
+                  <td id="ts-col-total-6">—</td>
+                  <td id="ts-grand-total" class="ts-grand-total">—</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="ts-row-actions">
+            <button class="ts-add-btn" onclick="addTimeRow()">+ Add Time Row</button>
+            <button class="ts-copy-btn" onclick="copyLastWeek()">Copy Last Week's Rows</button>
+          </div>
+        </div>
+
+        <!-- Month view -->
+        <div id="ts-month-view" style="display:none;">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="month-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stats & submit panel -->
+      <section class="panel ts-stats-panel">
+        <div class="ts-stats-grid">
+          <div class="ts-stat-block">
+            <div class="ts-stat-title">Hours Summary</div>
+            <div class="ts-stat-rows">
+              <div class="ts-stat-row">
+                <span class="ts-stat-dot ts-dot-billable"></span>
+                <span class="ts-stat-label">Billable</span>
+                <span class="ts-stat-val" id="ts-stat-billable">—</span>
+              </div>
+              <div class="ts-stat-row">
+                <span class="ts-stat-dot ts-dot-nonbillable"></span>
+                <span class="ts-stat-label">Non-billable</span>
+                <span class="ts-stat-val" id="ts-stat-nonbillable">—</span>
+              </div>
+              <div class="ts-stat-row ts-stat-total-row">
+                <span class="ts-stat-label">Total</span>
+                <span class="ts-stat-val" id="ts-stat-total">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ts-stat-block">
+            <div class="ts-stat-title">Time by Status</div>
+            <div class="ts-status-bar-wrap">
+              <div class="ts-status-bar">
+                <div class="ts-bar-segment ts-bar-draft" id="ts-bar-billable" style="width:100%"></div>
+              </div>
+            </div>
+            <div class="ts-status-legend">
+              <span class="ts-legend-item">
+                <span class="ts-stat-dot ts-dot-draft"></span>
+                Not Submitted
+              </span>
+            </div>
+          </div>
+
+          <div class="ts-stat-block ts-stat-util-block">
+            <div class="ts-stat-title">Billable Utilization</div>
+            <div class="ts-util-value" id="ts-stat-util">—</div>
+            <div class="ts-util-label">of logged hours</div>
+          </div>
+        </div>
+
+        <div class="ts-submit-bar">
+          <span class="ts-submit-hint">
+            Submit <strong id="ts-submit-count">0</strong> time entries for approval
+          </span>
+          <button class="button" onclick="submitTimesheet()">Submit for Approval</button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <!-- Project picker -->
+  <div id="ts-project-picker" class="ts-project-picker" style="display:none;"></div>
+
+  <!-- Cell popover (hours + notes) -->
+  <div id="ts-cell-popover" class="ts-cell-popover" style="display:none;">
+    <div class="ts-popover-arrow"></div>
+    <div class="ts-popover-inner">
+      <div class="ts-popover-header">
+        <span id="ts-pop-label">Log time</span>
+        <button class="ts-pop-done" onclick="closeCellPopover()">Done</button>
+      </div>
+      <div class="ts-pop-hours-row">
+        <label class="ts-pop-field-label">Hours</label>
+        <input id="ts-pop-hours" class="ts-pop-hours-input" type="number" min="0" step="0.25" placeholder="0" />
+      </div>
+      <label class="ts-pop-field-label" style="margin-top:10px; display:block;">Notes</label>
+      <textarea id="ts-pop-notes" class="ts-pop-notes" placeholder="What did you work on?" rows="3"></textarea>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | My Allocations</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="dashboard.html">Dashboard</a>
+        <a class="nav-item" href="timesheets.html">Timesheets</a>
+        <a class="nav-item" href="expenses.html">Expenses</a>
+        <a class="nav-item active" href="allocations.html">Allocations</a>
+        <a class="nav-item" href="projects.html">Projects</a>
+        <a class="nav-item" href="approvals.html">Approvals</a>
+        <a class="nav-item" href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>This week</strong>
+            <span id="sidebar-allocated">—</span>
+          </div>
+          <div class="link-item">
+            <strong>Utilization</strong>
+            <span id="sidebar-util">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <div style="padding:10px 0 8px; border-top:1px solid var(--border); margin-bottom:6px;"><div style="font-size:0.72rem; color:var(--muted); margin-bottom:2px;">Signed in as</div><div class="js-user-name" style="font-size:0.85rem; font-weight:600; color:var(--text);">—</div></div><a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">My Allocations</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Your planned project hours for the week, set by your manager.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="week-label">Apr 8 − Apr 14</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="summary-grid" id="summary-grid"></section>
+
+      <!-- Allocation breakdown -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3 id="panel-title">Project Allocations</h3>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size:0.85rem;" id="panel-subtitle">Your manager has set the following planned hours.</p>
+          </div>
+        </div>
+        <div id="alloc-projects"></div>
+      </section>
+
+      <!-- Planned vs Actual (shown for weeks with logged hours) -->
+      <section class="panel" id="compare-panel" style="display:none;">
+        <div class="panel-header">
+          <div>
+            <h3>Planned vs Actual</h3>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size:0.85rem;">How your logged hours compared to the plan.</p>
+          </div>
+        </div>
+        <div id="compare-content"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let _currentMonday = mondayOf();
+    let _allocData  = { capacity: 40, projects: [] };
+    let _actualData = { logged: 0, status: 'Draft' };
+
+    const statusClass = { Approved: 'status-approved', Submitted: 'status-pending', Pending: 'status-pending', Draft: 'status-draft', 'Not Started': 'status-draft' };
+    const STATUS_DISPLAY = { not_started: 'Not Started', draft: 'Draft', submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected' };
+
+    async function _loadWeek(monday) {
+      const iso = isoDate(monday);
+      try {
+        const [allocations, ts] = await Promise.all([
+          apiFetch(`/allocations/me?week_start=${iso}`),
+          apiFetch(`/timesheets/?week_start=${iso}`),
+        ]);
+        _allocData = {
+          capacity: 40,
+          projects: (allocations || []).map(a => ({
+            name:     a.project_name,
+            billable: a.billable,
+            hours:    a.planned_hours,
+          })),
+        };
+        const logged = (ts?.entries || []).reduce((s, e) => s + e.hours, 0);
+        _actualData = { logged, status: STATUS_DISPLAY[ts?.status?.toLowerCase()] || 'Draft' };
+      } catch(_) {}
+      document.getElementById('week-label').textContent = weekLabel(monday);
+      render();
+    }
+
+    async function changeWeek(dir) {
+      _currentMonday = new Date(_currentMonday);
+      _currentMonday.setDate(_currentMonday.getDate() + dir * 7);
+      await _loadWeek(_currentMonday);
+    }
+
+    function render() {
+      const alloc   = _allocData;
+      const actual  = _actualData;
+      const total   = alloc.projects.reduce((s, p) => s + p.hours, 0);
+      const billable = alloc.projects.filter(p => p.billable).reduce((s, p) => s + p.hours, 0);
+      const util    = Math.round((total / alloc.capacity) * 100);
+      const wLabel  = weekLabel(_currentMonday);
+
+      // Summary cards
+      const grid = document.getElementById('summary-grid');
+      grid.innerHTML = `
+        <article class="summary-card">
+          <div class="summary-label">Allocated this week</div>
+          <p class="summary-value">${total}h</p>
+          <div class="summary-meta"><span>of ${alloc.capacity}h capacity</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Billable hours planned</div>
+          <p class="summary-value" style="color:var(--accent)">${billable}h</p>
+          <div class="summary-meta"><span>${Math.round(billable/alloc.capacity*100)}% of capacity</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Utilization target</div>
+          <p class="summary-value">${util}%</p>
+          <div class="summary-meta"><span>${total}h planned · ${alloc.capacity - total}h unallocated</span></div>
+        </article>`;
+
+      // Project breakdown
+      const projDiv = document.getElementById('alloc-projects');
+      projDiv.innerHTML = '';
+      alloc.projects.forEach(p => {
+        const barPct = Math.min(100, Math.round((p.hours / alloc.capacity) * 100));
+        const item = document.createElement('div');
+        item.className = 'alloc-emp-project';
+        item.innerHTML = `
+          <div class="alloc-emp-proj-header">
+            <span class="alloc-emp-proj-name">${p.name}</span>
+            <span class="alloc-emp-proj-badge ${p.billable ? 'billable' : 'nonbill'}">${p.billable ? 'Billable' : 'Non-billable'}</span>
+          </div>
+          <div class="alloc-emp-bar-track">
+            <div class="alloc-emp-bar-fill${p.billable ? '' : ' nonbill'}" style="width:${barPct}%"></div>
+          </div>
+          <div class="alloc-emp-bar-meta">
+            <span>${p.hours}h allocated</span>
+            <span>${barPct}% of ${alloc.capacity}h capacity</span>
+          </div>`;
+        projDiv.appendChild(item);
+      });
+
+      // Total row
+      const totalRow = document.createElement('div');
+      totalRow.className = 'alloc-emp-total-row';
+      totalRow.innerHTML = `
+        <span style="color:var(--muted);">Total allocated</span>
+        <span style="font-weight:700;">${total}h <span style="font-weight:400; color:var(--muted);">/ ${alloc.capacity}h</span></span>`;
+      projDiv.appendChild(totalRow);
+
+      // Planned vs Actual
+      const comparePanel = document.getElementById('compare-panel');
+      const diff = actual.logged - total;
+      const diffSign = diff >= 0 ? '+' : '';
+      const diffColor = diff < 0 ? '#dc2626' : diff > 0 ? '#16a34a' : 'var(--muted)';
+      comparePanel.style.display = '';
+      document.getElementById('compare-content').innerHTML = `
+        <div class="alloc-compare-card">
+          <div class="alloc-compare-stat">
+            <span class="alloc-compare-stat-val">${total}h</span>
+            <span class="alloc-compare-stat-label">Planned</span>
+          </div>
+          <div style="font-size:1.4rem; color:var(--muted); font-weight:300;">vs</div>
+          <div class="alloc-compare-stat">
+            <span class="alloc-compare-stat-val">${actual.logged}h</span>
+            <span class="alloc-compare-stat-label">Logged</span>
+          </div>
+          <div class="alloc-compare-stat">
+            <span class="alloc-compare-stat-val" style="color:${diffColor}">${diffSign}${diff.toFixed(1)}h</span>
+            <span class="alloc-compare-stat-label">Variance</span>
+          </div>
+          <div class="alloc-compare-stat">
+            <span class="status-pill ${statusClass[actual.status] || 'status-draft'}">${actual.status}</span>
+            <span class="alloc-compare-stat-label" style="margin-top:4px;">Timesheet status</span>
+          </div>
+        </div>`;
+
+      // Sidebar
+      document.getElementById('sidebar-allocated').textContent = total + 'h planned';
+      document.getElementById('sidebar-util').textContent = util + '%';
+      document.getElementById('panel-title').textContent = `Project Allocations · ${wLabel}`;
+    }
+
+    // Calendar
+    let calMonth = new Date().getMonth(), calYear = new Date().getFullYear();
+    function buildCalendar() {
+      const drop = document.getElementById('week-cal-drop');
+      const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const firstDow    = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const curMonIso   = isoDate(_currentMonday);
+      let cells = '';
+      for (let i = 0; i < firstDow; i++) cells += `<div class="week-cal-cell empty"></div>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(calYear, calMonth, d);
+        const mon = new Date(dt);
+        const dow = dt.getDay();
+        mon.setDate(d - (dow === 0 ? 6 : dow - 1));
+        const monIso = isoDate(mon);
+        const sel = monIso === curMonIso ? ' week-selected' : '';
+        cells += `<div class="week-cal-cell${sel}" data-monday="${monIso}">${d}</div>`;
+      }
+      drop.innerHTML = `
+        <div class="week-cal-header">
+          <button class="week-cal-nav" onclick="calNavMonth(event,-1)">&#8249;</button>
+          <span>${MONTHS[calMonth]} ${calYear}</span>
+          <button class="week-cal-nav" onclick="calNavMonth(event,1)">&#8250;</button>
+        </div>
+        <div class="week-cal-day-hdrs">${DAYS.map(d=>`<div class="week-cal-day-hdr">${d}</div>`).join('')}</div>
+        <div class="week-cal-grid">${cells}</div>`;
+      drop.querySelectorAll('.week-cal-cell[data-monday]').forEach(cell => {
+        cell.addEventListener('mouseenter', () => {
+          drop.querySelectorAll(`.week-cal-cell[data-monday="${cell.dataset.monday}"]`).forEach(c => { if (!c.classList.contains('week-selected')) c.classList.add('week-hover'); });
+        });
+        cell.addEventListener('mouseleave', () => drop.querySelectorAll('.week-cal-cell.week-hover').forEach(c => c.classList.remove('week-hover')));
+        cell.addEventListener('click', async e => {
+          e.stopPropagation();
+          const newMon = new Date(cell.dataset.monday + 'T12:00:00');
+          const delta = Math.round((newMon - _currentMonday) / (7 * 86400000));
+          if (delta !== 0) await changeWeek(delta);
+          drop.style.display = 'none'; document.removeEventListener('click', closeCal);
+        });
+      });
+    }
+    function calNavMonth(e, dir) {
+      e.stopPropagation();
+      calMonth += dir;
+      if (calMonth < 0)  { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0;  calYear++; }
+      buildCalendar();
+    }
+    function toggleCalendar(e) {
+      e.stopPropagation();
+      const drop = document.getElementById('week-cal-drop');
+      if (drop.style.display === 'none') { buildCalendar(); drop.style.display = ''; setTimeout(() => document.addEventListener('click', closeCal), 0); }
+      else { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+    function closeCal(e) {
+      const drop = document.getElementById('week-cal-drop');
+      if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      await _loadWeek(_currentMonday);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | My Reports</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="dashboard.html">Dashboard</a>
+        <a class="nav-item" href="timesheets.html">Timesheets</a>
+        <a class="nav-item" href="expenses.html">Expenses</a>
+        <a class="nav-item" href="allocations.html">Allocations</a>
+        <a class="nav-item" href="projects.html">Projects</a>
+        <a class="nav-item" href="approvals.html">Approvals</a>
+        <a class="nav-item active" href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong id="sb-month-label">Month total</strong>
+            <span id="sb-total">—</span>
+          </div>
+          <div class="link-item">
+            <strong>Billable utilization</strong>
+            <span id="sb-bill">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <div style="padding:10px 0 8px; border-top:1px solid var(--border); margin-bottom:6px;"><div style="font-size:0.72rem; color:var(--muted); margin-bottom:2px;">Signed in as</div><div class="js-user-name" style="font-size:0.85rem; font-weight:600; color:var(--text);">—</div></div><a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">My Reports</h1>
+          <p id="report-subtitle" style="margin: 8px 0 0; color: var(--muted);">Your personal hours, utilization, and project breakdown.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="changeMonth(-1)">&#8249;</button>
+            <div class="chip" id="month-chip">—</div>
+            <button class="week-nav-btn" onclick="changeMonth(1)">&#8250;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-label" id="card-total-label">Hours logged</div>
+          <p class="summary-value" id="card-total">—</p>
+          <div class="summary-meta" id="card-total-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Billable utilization</div>
+          <p class="summary-value" id="card-bill">—</p>
+          <div class="summary-meta" id="card-bill-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Approved timesheets</div>
+          <p class="summary-value" id="card-approved">—</p>
+          <div class="summary-meta" id="card-approved-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Overtime</div>
+          <p class="summary-value" id="card-overtime">—</p>
+          <div class="summary-meta" id="card-overtime-meta"><span>—</span></div>
+        </article>
+      </section>
+
+      <!-- Hours by week chart -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Hours by week</h3>
+            <p id="weekly-chart-sub" style="margin: 6px 0 0; color: var(--muted);">Logged hours across weeks.</p>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-end; height:120px; padding:0 8px 0;" id="weekly-bars"></div>
+        <div style="display:flex; gap:8px; margin-top:6px; padding:0 8px;" id="weekly-labels"></div>
+      </section>
+
+      <!-- Hours by project -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Hours by project</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Your total contribution per project this month.</p>
+          </div>
+        </div>
+        <div class="chart-bars" id="project-chart"></div>
+      </section>
+
+      <!-- Billable vs Non-billable -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Billable vs Non-billable</h3>
+            <p id="bill-subtitle" style="margin: 6px 0 0; color: var(--muted);">Your hours split for this month.</p>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:24px; align-items:start;">
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div>
+              <div id="bill-label" style="display:flex; justify-content:space-between; margin-bottom:4px;"></div>
+              <div style="height:10px; background:var(--border); border-radius:6px; overflow:hidden;">
+                <div id="bill-bar" style="height:100%; width:0%; background:var(--accent); border-radius:6px;"></div>
+              </div>
+            </div>
+            <div>
+              <div id="nonbill-label" style="display:flex; justify-content:space-between; margin-bottom:4px;"></div>
+              <div style="height:10px; background:var(--border); border-radius:6px; overflow:hidden;">
+                <div id="nonbill-bar" style="height:100%; width:0%; background:#94a3b8; border-radius:6px;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Summary</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Total logged</span><strong id="summary-total">—</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Billable</span><strong id="summary-bill" style="color:var(--accent);">—</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Non-billable</span><strong id="summary-nonbill">—</strong></div>
+            <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; font-size:0.875rem;"><span style="color:var(--muted);">Utilization</span><strong id="summary-util" style="color:var(--accent);">—</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Week-by-week table -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Week-by-week breakdown</h3>
+            <p style="margin: 6px 0 0; color: var(--muted);">Detailed view of each week.</p>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Week</th>
+                <th>Logged</th>
+                <th>Billable</th>
+                <th>Non-billable</th>
+                <th>Utilization</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="week-table"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let _reportYear  = new Date().getFullYear();
+    let _reportMonth = new Date().getMonth();
+    let _projectsById = {};
+
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const STATUS_DISPLAY = { not_started: 'Not Started', draft: 'Draft', submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected' };
+    const statusClass    = { Submitted: 'status-pending', Approved: 'status-approved', Rejected: 'status-draft', Draft: 'status-draft', 'Not Started': 'status-draft' };
+    const TARGET_BILL    = 80;
+
+    function mondaysInMonth(year, month) {
+      const result = [];
+      const d = new Date(year, month, 1);
+      while (d.getMonth() === month) {
+        if (d.getDay() === 1) result.push(new Date(d));
+        d.setDate(d.getDate() + 1);
+      }
+      return result;
+    }
+
+    async function _loadReport() {
+      const mondays = mondaysInMonth(_reportYear, _reportMonth);
+      const monthLabel = `${MONTHS[_reportMonth]} ${_reportYear}`;
+
+      document.getElementById('month-chip').textContent = monthLabel;
+      document.getElementById('report-subtitle').textContent = `Your personal hours, utilization, and project breakdown for ${MONTHS[_reportMonth]}.`;
+      document.getElementById('sb-month-label').textContent = MONTHS[_reportMonth] + ' total';
+      document.getElementById('bill-subtitle').textContent = `Your hours split for ${MONTHS[_reportMonth]}.`;
+      document.getElementById('weekly-chart-sub').textContent = `Logged hours across weeks of ${MONTHS[_reportMonth]}.`;
+
+      if (mondays.length === 0) {
+        // Month has no Mondays (unlikely) — clear display
+        _renderEmpty();
+        return;
+      }
+
+      const [projects, ...weekTimesheets] = await Promise.all([
+        apiFetch('/projects/').catch(() => []),
+        ...mondays.map(w => apiFetch(`/timesheets/?week_start=${isoDate(w)}`).catch(() => null)),
+      ]);
+
+      _projectsById = Object.fromEntries((projects || []).map(p => [String(p.id), p.name]));
+
+      const weekData = weekTimesheets.map((ts, i) => {
+        const status   = STATUS_DISPLAY[ts?.status?.toLowerCase()] || 'Not Started';
+        const total    = (ts?.entries || []).reduce((s, e) => s + e.hours, 0);
+        const billable = (ts?.entries || []).filter(e => e.billable).reduce((s, e) => s + e.hours, 0);
+        return { label: weekLabel(mondays[i]), hours: total, billable, status };
+      });
+
+      const projMap = {};
+      weekTimesheets.forEach(ts => {
+        (ts?.entries || []).forEach(e => {
+          const name = _projectsById[String(e.project_id)] || `Project ${e.project_id}`;
+          projMap[name] = (projMap[name] || 0) + e.hours;
+        });
+      });
+      const projectTotals = Object.entries(projMap)
+        .map(([name, hours]) => ({ name, hours }))
+        .sort((a, b) => b.hours - a.hours);
+
+      const totalHours    = weekData.reduce((s, w) => s + w.hours, 0);
+      const billableHours = weekData.reduce((s, w) => s + w.billable, 0);
+      const billPct       = totalHours > 0 ? Math.round((billableHours / totalHours) * 100) : 0;
+      const nonBill       = +(totalHours - billableHours).toFixed(1);
+      const avgPerWeek    = weekData.length > 0 ? +(totalHours / weekData.length).toFixed(1) : 0;
+      const approved      = weekData.filter(w => w.status === 'Approved').length;
+      const pending       = weekData.filter(w => w.status === 'Submitted').length;
+      const rejected      = weekData.filter(w => w.status === 'Rejected').length;
+      const overtime      = Math.max(0, +(totalHours - weekData.length * 40).toFixed(1));
+
+      // Sidebar
+      document.getElementById('sb-total').textContent = totalHours + 'h';
+      document.getElementById('sb-bill').textContent  = billPct + '%';
+
+      // Summary cards
+      document.getElementById('card-total').textContent = totalHours + 'h';
+      document.getElementById('card-total-label').textContent = MONTHS[_reportMonth] + ' hours logged';
+      document.getElementById('card-total-meta').innerHTML = `<span>${weekData.length} weeks</span><span>Avg ${avgPerWeek}h/week</span>`;
+
+      document.getElementById('card-bill').textContent = billPct + '%';
+      document.getElementById('card-bill-meta').innerHTML = `<span>Target: ${TARGET_BILL}%</span><span style="color:${billPct >= TARGET_BILL ? '#16a34a' : '#dc2626'};">${billPct >= TARGET_BILL ? `↑ ${billPct - TARGET_BILL}% above` : `↓ ${TARGET_BILL - billPct}% below`}</span>`;
+
+      document.getElementById('card-approved').textContent = `${approved} / ${weekData.length}`;
+      document.getElementById('card-approved-meta').innerHTML = `<span>${pending} pending review</span><span>${rejected} rejected</span>`;
+
+      document.getElementById('card-overtime').textContent = overtime + 'h';
+      document.getElementById('card-overtime-meta').innerHTML = `<span>Target: 0h</span><span style="color:${overtime === 0 ? '#16a34a' : '#dc2626'};">${overtime === 0 ? 'On track' : overtime + 'h over'}</span>`;
+
+      // Weekly bars
+      const maxH = Math.max(...weekData.map(w => w.hours), 1);
+      const barsEl   = document.getElementById('weekly-bars');
+      const labelsEl = document.getElementById('weekly-labels');
+      barsEl.innerHTML = '';
+      labelsEl.innerHTML = '';
+      weekData.forEach(w => {
+        const pct = Math.round((w.hours / maxH) * 100);
+        const bar = document.createElement('div');
+        bar.style.cssText = 'flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;';
+        bar.innerHTML = `
+          <span style="font-size:0.72rem; font-weight:700; color:var(--accent);">${w.hours > 0 ? w.hours + 'h' : '—'}</span>
+          <div style="width:100%; height:${pct}%; background:var(--accent); border-radius:6px 6px 0 0; opacity:0.85; min-height:4px;"></div>`;
+        barsEl.appendChild(bar);
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'flex:1; text-align:center; font-size:0.72rem; color:var(--muted); font-weight:600;';
+        lbl.textContent = w.label;
+        labelsEl.appendChild(lbl);
+      });
+
+      // Project chart
+      const maxP    = Math.max(...projectTotals.map(p => p.hours), 1);
+      const chartEl = document.getElementById('project-chart');
+      chartEl.innerHTML = '';
+      if (projectTotals.length === 0) {
+        chartEl.innerHTML = '<div style="color:var(--muted); font-size:0.9rem; padding:8px 0;">No project hours logged this month.</div>';
+      } else {
+        projectTotals.forEach(p => {
+          const pct = Math.round((p.hours / maxP) * 100);
+          const row = document.createElement('div');
+          row.className = 'chart-row';
+          row.innerHTML = `
+            <span style="font-size:0.85rem; font-weight:600; color:#102a43;">${p.name}</span>
+            <div class="chart-bar"><div class="chart-fill" style="width:${pct}%"></div></div>
+            <span style="font-size:0.85rem; font-weight:700; color:var(--accent);">${p.hours}h</span>`;
+          chartEl.appendChild(row);
+        });
+      }
+
+      // Billable bars
+      document.getElementById('bill-label').innerHTML = `
+        <span style="font-size:0.85rem; font-weight:600; color:#102a43;">Billable</span>
+        <span style="font-size:0.85rem; font-weight:700; color:var(--accent);">${billableHours}h (${billPct}%)</span>`;
+      document.getElementById('bill-bar').style.width = billPct + '%';
+      document.getElementById('nonbill-label').innerHTML = `
+        <span style="font-size:0.85rem; font-weight:600; color:#102a43;">Non-billable</span>
+        <span style="font-size:0.85rem; font-weight:700; color:var(--muted);">${nonBill}h (${100 - billPct}%)</span>`;
+      document.getElementById('nonbill-bar').style.width = (100 - billPct) + '%';
+
+      document.getElementById('summary-total').textContent   = totalHours + 'h';
+      document.getElementById('summary-bill').textContent    = billableHours + 'h';
+      document.getElementById('summary-nonbill').textContent = nonBill + 'h';
+      document.getElementById('summary-util').textContent    = billPct + '%';
+
+      // Week table
+      const tbody = document.getElementById('week-table');
+      tbody.innerHTML = '';
+      if (weekData.every(w => w.hours === 0)) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted); text-align:center; padding:16px;">No data logged this month.</td></tr>`;
+      } else {
+        weekData.forEach(w => {
+          const nb   = +(w.hours - w.billable).toFixed(1);
+          const util = w.hours > 0 ? Math.round((w.billable / w.hours) * 100) : 0;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${w.label}</strong></td>
+            <td><strong>${w.hours}h</strong></td>
+            <td style="color:var(--accent); font-weight:600;">${w.billable}h</td>
+            <td style="color:var(--muted);">${nb}h</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="flex:1; height:6px; background:var(--border); border-radius:3px; min-width:60px; overflow:hidden;">
+                  <div style="height:100%; width:${util}%; background:var(--accent); border-radius:3px;"></div>
+                </div>
+                <span style="font-size:0.82rem; font-weight:700; min-width:32px;">${util}%</span>
+              </div>
+            </td>
+            <td><span class="status-pill ${statusClass[w.status] || 'status-draft'}">${w.status}</span></td>`;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    function _renderEmpty() {
+      ['card-total','card-bill','card-approved','card-overtime'].forEach(id => document.getElementById(id).textContent = '—');
+      ['weekly-bars','weekly-labels','project-chart','week-table'].forEach(id => document.getElementById(id).innerHTML = '');
+    }
+
+    async function changeMonth(dir) {
+      _reportMonth += dir;
+      if (_reportMonth < 0)  { _reportMonth = 11; _reportYear--; }
+      if (_reportMonth > 11) { _reportMonth = 0;  _reportYear++; }
+      await _loadReport();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      await _loadReport();
+    });
+  </script>
+</body>
+</html>

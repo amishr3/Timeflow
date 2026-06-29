@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | Team Timesheets</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body class="manager-theme">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+      <span class="manager-role-badge">⚙ Manager</span>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="manager-dashboard.html">Dashboard</a>
+        <a class="nav-item" href="manager-approvals.html">Approvals <span class="nav-badge" id="nav-pending-count" style="display:none;">0</span></a>
+        <a class="nav-item active" href="manager-timesheets.html">Team Timesheets</a>
+        <a class="nav-item" href="manager-expenses.html">Expenses</a>
+        <a class="nav-item" href="manager-allocations.html">Allocations</a>
+        <a class="nav-item" href="manager-projects.html">Projects</a>
+        <a class="nav-item" href="manager-reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Team members</strong>
+            <span id="sb-members">—</span>
+          </div>
+          <div class="link-item">
+            <strong>Week</strong>
+            <span id="sb-week">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">Team Timesheets</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">View submitted hours for each team member this week.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="chip" id="member-count-chip">— members</div>
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="week-label">—</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Member list panel -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Team Members</h3>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size:0.85rem;">Click a member to view their full timesheet</p>
+          </div>
+          <span class="chip" id="list-count-chip">— members</span>
+        </div>
+        <div id="ts-member-list"></div>
+      </section>
+
+      <!-- Detail panel -->
+      <section class="panel" id="ts-detail-panel" style="display:none;">
+        <div class="panel-header">
+          <div>
+            <h3 id="ts-detail-name">—</h3>
+            <p id="ts-detail-role" style="margin: 4px 0 0; color: var(--muted); font-size:0.85rem;">—</p>
+          </div>
+          <button class="button" style="background:none; border:1.5px solid var(--border); color:var(--muted); font-size:0.82rem;" onclick="closeDetail()">✕ Close</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="ts-grid" id="ts-detail-table">
+            <thead>
+              <tr>
+                <th class="ts-project-col" style="text-align:left; padding-left:4px;">Project / Task</th>
+                <th><span class="ts-hdr-day">Mon</span><span class="ts-hdr-date">—</span></th>
+                <th><span class="ts-hdr-day">Tue</span><span class="ts-hdr-date">—</span></th>
+                <th><span class="ts-hdr-day">Wed</span><span class="ts-hdr-date">—</span></th>
+                <th><span class="ts-hdr-day">Thu</span><span class="ts-hdr-date">—</span></th>
+                <th><span class="ts-hdr-day">Fri</span><span class="ts-hdr-date">—</span></th>
+                <th class="ts-weekend-col"><span class="ts-hdr-day">Sat</span><span class="ts-hdr-date">—</span></th>
+                <th class="ts-weekend-col"><span class="ts-hdr-day">Sun</span><span class="ts-hdr-date">—</span></th>
+                <th class="ts-total-col">Total</th>
+              </tr>
+            </thead>
+            <tbody id="ts-detail-body"></tbody>
+            <tfoot>
+              <tr class="ts-footer-row" id="ts-detail-footer"></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="ts-stats-grid" id="ts-detail-stats" style="margin-top:20px; border:1px solid var(--border); border-radius:14px; overflow:hidden;"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STATUS_DISPLAY = { not_started: 'Not Started', draft: 'Draft', submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected' };
+    const STATUS_CLASS   = { not_started: 'status-draft', draft: 'status-draft', submitted: 'status-pending', approved: 'status-approved', rejected: 'status-draft' };
+    const DAY_SHORT      = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const MONTHS         = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    let _currentMonday = mondayOf();
+    let _teamData      = [];   // TeamTimesheetOut[]
+    let _projectNames  = {};   // { id: name }
+    let _activeDetail  = null; // { member, entries }
+
+    async function _loadWeek(monday) {
+      const iso = isoDate(monday);
+      closeDetail();
+      document.getElementById('week-label').textContent = weekLabel(monday);
+      document.getElementById('sb-week').textContent    = weekLabel(monday);
+
+      const [team, projects] = await Promise.all([
+        apiFetch(`/timesheets/team?week_start=${iso}`).catch(() => []),
+        apiFetch('/projects/').catch(() => []),
+      ]);
+
+      _teamData = team || [];
+      _projectNames = {};
+      (projects || []).forEach(p => _projectNames[p.id] = p.name);
+
+      renderMemberList();
+    }
+
+    async function changeWeek(dir) {
+      _currentMonday = new Date(_currentMonday);
+      _currentMonday.setDate(_currentMonday.getDate() + dir * 7);
+      await _loadWeek(_currentMonday);
+    }
+
+    function renderMemberList() {
+      const count = _teamData.length;
+      document.getElementById('member-count-chip').textContent = count + ' members';
+      document.getElementById('list-count-chip').textContent   = count + ' members';
+      document.getElementById('sb-members').textContent        = count + ' active';
+
+      const list = document.getElementById('ts-member-list');
+      list.innerHTML = '';
+
+      if (count === 0) {
+        list.innerHTML = '<div style="color:var(--muted); padding:12px 0; font-size:0.9rem;">No team members found.</div>';
+        return;
+      }
+
+      _teamData.forEach((m, i) => {
+        const util = m.total_hours > 0 ? Math.round((m.billable_hours / m.total_hours) * 100) : 0;
+        const sLabel = STATUS_DISPLAY[m.status] || m.status;
+        const sClass = STATUS_CLASS[m.status] || 'status-draft';
+        const initials = m.user_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        const hasTs = !!m.timesheet_id;
+
+        const card = document.createElement('div');
+        card.className = 'mgr-approval-card' + (hasTs ? ' mgr-card-clickable' : '');
+        if (hasTs) card.onclick = () => openDetail(i);
+        card.innerHTML = `
+          <div class="mgr-approval-card-left">
+            <div class="mgr-avatar mgr-avatar-lg">${initials}</div>
+            <div>
+              <div class="mgr-member-name">${m.user_name}</div>
+              <div class="mgr-member-meta">${m.user_role || '—'} · ${weekLabel(_currentMonday)}</div>
+            </div>
+          </div>
+          <div class="mgr-approval-card-stats">
+            <div class="mgr-stat"><span class="mgr-stat-val">${m.total_hours.toFixed(1)}h</span><span class="mgr-stat-label">Total</span></div>
+            <div class="mgr-stat"><span class="mgr-stat-val" style="color:var(--accent)">${m.billable_hours.toFixed(1)}h</span><span class="mgr-stat-label">Billable</span></div>
+            <div class="mgr-stat"><span class="mgr-stat-val">${util}%</span><span class="mgr-stat-label">Utilization</span></div>
+          </div>
+          <div class="mgr-approval-card-right" style="flex-direction:row; align-items:center; gap:16px;">
+            <span class="status-pill ${sClass}">${sLabel}</span>
+            ${hasTs ? '<span style="font-size:0.82rem; color:var(--accent); font-weight:600;">View →</span>' : ''}
+          </div>`;
+        list.appendChild(card);
+      });
+    }
+
+    async function openDetail(i) {
+      const m = _teamData[i];
+      let entries = [];
+
+      if (m.timesheet_id) {
+        try {
+          const ts = await apiFetch(`/timesheets/${m.timesheet_id}/detail`);
+          entries = ts?.entries || [];
+        } catch (_) {}
+      }
+
+      _activeDetail = { member: m, entries };
+      renderDetail();
+    }
+
+    function renderDetail() {
+      const { member: m, entries } = _activeDetail;
+
+      document.getElementById('ts-detail-name').textContent = m.user_name;
+      document.getElementById('ts-detail-role').textContent = `${m.user_role || '—'} · ${weekLabel(_currentMonday)}`;
+
+      // Update grid header dates
+      DAY_SHORT.forEach((d, di) => {
+        const th = document.querySelector(`#ts-detail-table thead th:nth-child(${di + 2})`);
+        if (th) {
+          const dd = new Date(_currentMonday); dd.setDate(_currentMonday.getDate() + di);
+          th.innerHTML = `<span class="ts-hdr-day">${d}</span><span class="ts-hdr-date">${MONTHS[dd.getMonth()]} ${dd.getDate()}</span>`;
+        }
+      });
+
+      // Group by project+task
+      const rows = {};
+      entries.forEach(e => {
+        const key = `${e.project_id}__${e.task || ''}__${e.billable}`;
+        if (!rows[key]) {
+          rows[key] = {
+            project_name: _projectNames[e.project_id] || `Project #${e.project_id}`,
+            task: e.task || '',
+            billable: e.billable,
+            hours: [0, 0, 0, 0, 0, 0, 0],
+          };
+        }
+        rows[key].hours[dayIndex(e.date)] += e.hours;
+      });
+
+      const rowList = Object.values(rows);
+      const tbody   = document.getElementById('ts-detail-body');
+      tbody.innerHTML = '';
+
+      if (rowList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--muted); padding:20px; font-size:0.9rem;">No entries logged this week</td></tr>`;
+      } else {
+        rowList.forEach(row => {
+          const rowTotal = row.hours.reduce((s, h) => s + h, 0);
+          const tr = document.createElement('tr');
+          tr.className = 'ts-row';
+          let html = `<td class="ts-project-cell" style="pointer-events:none;">
+            <span style="font-weight:600; font-size:0.88rem; color:#102a43; display:block;">${row.project_name}</span>
+            ${row.task ? `<span style="font-size:0.78rem; color:var(--muted);">${row.task}</span>` : ''}
+            <span style="font-size:0.7rem; color:${row.billable ? 'var(--accent)' : 'var(--muted)'}; margin-top:3px; display:block;">${row.billable ? '● Billable' : '○ Non-billable'}</span>
+          </td>`;
+          row.hours.forEach((h, di) => {
+            html += `<td class="ts-hours-cell${di >= 5 ? ' ts-weekend' : ''}" style="pointer-events:none;">
+              <span class="ts-cell-display" style="${h > 0 ? 'color:#102a43;font-weight:600;' : 'color:#c4cdd9;'}">${h > 0 ? h + 'h' : '—'}</span>
+            </td>`;
+          });
+          html += `<td class="ts-row-total">${rowTotal > 0 ? rowTotal.toFixed(1) + 'h' : '—'}</td>`;
+          tr.innerHTML = html;
+          tbody.appendChild(tr);
+        });
+      }
+
+      // Footer totals
+      const footer = document.getElementById('ts-detail-footer');
+      let ftHTML = `<td class="ts-footer-label">Daily Total</td>`;
+      let grand = 0;
+      for (let di = 0; di < 7; di++) {
+        const col = rowList.reduce((s, r) => s + r.hours[di], 0);
+        grand += col;
+        ftHTML += `<td>${col > 0 ? col.toFixed(1) + 'h' : '—'}</td>`;
+      }
+      ftHTML += `<td class="ts-grand-total">${grand.toFixed(1)}h</td>`;
+      footer.innerHTML = ftHTML;
+
+      // Stats
+      const sLabel  = STATUS_DISPLAY[m.status] || m.status;
+      const sClass  = STATUS_CLASS[m.status] || 'status-draft';
+      const nonBill = +(m.total_hours - m.billable_hours).toFixed(1);
+      const util    = m.total_hours > 0 ? Math.round((m.billable_hours / m.total_hours) * 100) : 0;
+
+      document.getElementById('ts-detail-stats').innerHTML = `
+        <div class="ts-stat-block">
+          <div class="ts-stat-title">Hours Summary</div>
+          <div class="ts-stat-rows">
+            <div class="ts-stat-row"><span class="ts-stat-dot ts-dot-billable"></span><span class="ts-stat-label">Billable</span><span class="ts-stat-val">${m.billable_hours.toFixed(1)}h</span></div>
+            <div class="ts-stat-row"><span class="ts-stat-dot ts-dot-nonbillable"></span><span class="ts-stat-label">Non-billable</span><span class="ts-stat-val">${nonBill}h</span></div>
+            <div class="ts-stat-row ts-stat-total-row"><span class="ts-stat-label">Total</span><span class="ts-stat-val">${m.total_hours.toFixed(1)}h</span></div>
+          </div>
+        </div>
+        <div class="ts-stat-block">
+          <div class="ts-stat-title">Status</div>
+          <div style="margin-top:8px;"><span class="status-pill ${sClass}">${sLabel}</span></div>
+          ${m.timesheet_id && m.status === 'submitted' ? `
+          <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button onclick="approveTimesheet(${m.timesheet_id})" class="button" style="font-size:0.78rem; padding:6px 14px;">✓ Approve</button>
+            <button onclick="rejectTimesheet(${m.timesheet_id})" style="background:none; border:1.5px solid #fecaca; color:#dc2626; font-size:0.78rem; padding:6px 14px; border-radius:7px; cursor:pointer; font-weight:600; font-family:inherit;">Reject</button>
+          </div>` : ''}
+        </div>
+        <div class="ts-stat-block ts-stat-util-block">
+          <div class="ts-stat-title">Billable Utilization</div>
+          <div class="ts-util-value">${util}%</div>
+          <div class="ts-util-label">of logged hours</div>
+        </div>`;
+
+      const panel = document.getElementById('ts-detail-panel');
+      panel.style.display = '';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function approveTimesheet(id) {
+      try {
+        await apiFetch(`/timesheets/${id}/approve`, { method: 'POST', body: {} });
+        await _loadWeek(_currentMonday);
+      } catch (e) {
+        alert('Could not approve: ' + e.message);
+      }
+    }
+
+    async function rejectTimesheet(id) {
+      const note = prompt('Rejection reason (optional):') ?? null;
+      try {
+        await apiFetch(`/timesheets/${id}/reject`, { method: 'POST', body: { reject_note: note } });
+        await _loadWeek(_currentMonday);
+      } catch (e) {
+        alert('Could not reject: ' + e.message);
+      }
+    }
+
+    function closeDetail() {
+      document.getElementById('ts-detail-panel').style.display = 'none';
+      _activeDetail = null;
+    }
+
+    // ─── Calendar ─────────────────────────────────────────────────────────────
+
+    let calMonth = new Date().getMonth(), calYear = new Date().getFullYear();
+    const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const CAL_DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+    function buildCalendar() {
+      const drop     = document.getElementById('week-cal-drop');
+      const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+      const days     = new Date(calYear, calMonth + 1, 0).getDate();
+      const curIso   = isoDate(_currentMonday);
+      let cells = '';
+      for (let i = 0; i < firstDow; i++) cells += `<div class="week-cal-cell empty"></div>`;
+      for (let d = 1; d <= days; d++) {
+        const dt  = new Date(calYear, calMonth, d);
+        const mon = new Date(dt);
+        const dow = dt.getDay();
+        mon.setDate(d - (dow === 0 ? 6 : dow - 1));
+        const monIso = isoDate(mon);
+        const sel    = monIso === curIso ? ' week-selected' : '';
+        cells += `<div class="week-cal-cell${sel}" data-monday="${monIso}">${d}</div>`;
+      }
+      drop.innerHTML = `
+        <div class="week-cal-header">
+          <button class="week-cal-nav" onclick="calNavMonth(event,-1)">&#8249;</button>
+          <span>${CAL_MONTHS[calMonth]} ${calYear}</span>
+          <button class="week-cal-nav" onclick="calNavMonth(event,1)">&#8250;</button>
+        </div>
+        <div class="week-cal-day-hdrs">${CAL_DAYS.map(d => `<div class="week-cal-day-hdr">${d}</div>`).join('')}</div>
+        <div class="week-cal-grid">${cells}</div>`;
+      drop.querySelectorAll('.week-cal-cell[data-monday]').forEach(cell => {
+        cell.addEventListener('mouseenter', () => {
+          drop.querySelectorAll(`.week-cal-cell[data-monday="${cell.dataset.monday}"]`).forEach(c => { if (!c.classList.contains('week-selected')) c.classList.add('week-hover'); });
+        });
+        cell.addEventListener('mouseleave', () => drop.querySelectorAll('.week-cal-cell.week-hover').forEach(c => c.classList.remove('week-hover')));
+        cell.addEventListener('click', async e => {
+          e.stopPropagation();
+          const newMon = new Date(cell.dataset.monday + 'T12:00:00');
+          const delta  = Math.round((newMon - _currentMonday) / (7 * 86400000));
+          if (delta !== 0) await changeWeek(delta);
+          drop.style.display = 'none'; document.removeEventListener('click', closeCal);
+        });
+      });
+    }
+    function calNavMonth(e, dir) {
+      e.stopPropagation();
+      calMonth += dir;
+      if (calMonth < 0)  { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0;  calYear++; }
+      buildCalendar();
+    }
+    function toggleCalendar(e) {
+      e.stopPropagation();
+      const drop = document.getElementById('week-cal-drop');
+      if (drop.style.display === 'none') {
+        calMonth = _currentMonday.getMonth(); calYear = _currentMonday.getFullYear();
+        buildCalendar(); drop.style.display = '';
+        setTimeout(() => document.addEventListener('click', closeCal), 0);
+      } else { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+    function closeCal(e) {
+      const drop = document.getElementById('week-cal-drop');
+      if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireManagerAuth()) return;
+      await _loadWeek(_currentMonday);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeFlow | My Projects</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="api.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TimeFlow</h1>
+          <p>Timesheet prototype</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <a class="nav-item" href="dashboard.html">Dashboard</a>
+        <a class="nav-item" href="timesheets.html">Timesheets</a>
+        <a class="nav-item" href="expenses.html">Expenses</a>
+        <a class="nav-item" href="allocations.html">Allocations</a>
+        <a class="nav-item active" href="projects.html">Projects</a>
+        <a class="nav-item" href="approvals.html">Approvals</a>
+        <a class="nav-item" href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <h2>Quick links</h2>
+        <div class="link-list">
+          <div class="link-item">
+            <strong>Assigned projects</strong>
+            <span id="sb-active">—</span>
+          </div>
+          <div class="link-item">
+            <strong>This week</strong>
+            <span id="sb-week-hours">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto;">
+        <div style="padding:10px 0 8px; border-top:1px solid var(--border); margin-bottom:6px;"><div style="font-size:0.72rem; color:var(--muted); margin-bottom:2px;">Signed in as</div><div class="js-user-name" style="font-size:0.85rem; font-weight:600; color:var(--text);">—</div></div><a href="#" onclick="signOut(); return false;" class="btn-signout">Sign out</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="topbar">
+        <div>
+          <h1 class="page-title">My Projects</h1>
+          <p style="margin: 8px 0 0; color: var(--muted);">Projects you're assigned to and your hours logged per week.</p>
+        </div>
+        <div class="topbar-meta">
+          <div class="chip" id="active-chip">— active</div>
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="changeWeek(-1)">&#8249;</button>
+            <div class="chip" id="week-label">—</div>
+            <button class="week-nav-btn" onclick="changeWeek(1)">&#8250;</button>
+            <button class="week-nav-btn" id="cal-btn" onclick="toggleCalendar(event)" title="Jump to week">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="11" rx="2"/><path d="M1.5 7h13M5 1v4M11 1v4"/></svg>
+            </button>
+            <div class="week-cal-drop" id="week-cal-drop" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-label">Hours this week</div>
+          <p class="summary-value" id="proj-total-val">—</p>
+          <div class="summary-meta" id="proj-total-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Billable hours</div>
+          <p class="summary-value" id="proj-bill-val" style="color:var(--accent);">—</p>
+          <div class="summary-meta" id="proj-bill-meta"><span>—</span></div>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label">Projects active</div>
+          <p class="summary-value" id="proj-count">—</p>
+          <div class="summary-meta" id="proj-count-meta"><span>—</span></div>
+        </article>
+      </section>
+
+      <!-- Project cards -->
+      <div id="project-cards" style="display:flex; flex-direction:column; gap:16px;"></div>
+    </main>
+  </div>
+
+  <script>
+    let _currentMonday  = mondayOf();
+    let _allProjects    = [];
+    let _weekMondays    = [];   // 4 mondays: [w-3, w-2, w-1, current]
+    let _weekTimesheets = [];   // matching timesheets
+
+    async function _loadProjects(monday) {
+      // Build 4-week window ending at `monday`
+      _weekMondays = [];
+      for (let i = 3; i >= 0; i--) {
+        const w = new Date(monday);
+        w.setDate(w.getDate() - i * 7);
+        _weekMondays.push(w);
+      }
+
+      const [projects, ...timesheets] = await Promise.all([
+        apiFetch('/projects/').catch(() => []),
+        ..._weekMondays.map(w => apiFetch(`/timesheets/?week_start=${isoDate(w)}`).catch(() => null)),
+      ]);
+
+      _allProjects    = projects || [];
+      _weekTimesheets = timesheets;
+
+      document.getElementById('week-label').textContent = weekLabel(monday);
+      renderProjects();
+    }
+
+    function renderProjects() {
+      const currentEntries  = _weekTimesheets[3]?.entries || [];
+      const totalHours      = currentEntries.reduce((s, e) => s + e.hours, 0);
+      const billableHours   = currentEntries.filter(e => e.billable).reduce((s, e) => s + e.hours, 0);
+      const billPct         = totalHours > 0 ? Math.round((billableHours / totalHours) * 100) : 0;
+      const nonBill         = +(totalHours - billableHours).toFixed(1);
+      const loggedPct       = Math.round((totalHours / 40) * 100);
+      const topProject      = _allProjects.find(p =>
+        currentEntries.filter(e => String(e.project_id) === String(p.id)).reduce((s, e) => s + e.hours, 0) ===
+        Math.max(..._allProjects.map(p => currentEntries.filter(e => String(e.project_id) === String(p.id)).reduce((s, e) => s + e.hours, 0)))
+      );
+
+      // Summary cards
+      document.getElementById('proj-total-val').textContent = totalHours + 'h';
+      document.getElementById('proj-total-meta').innerHTML  = `<span>Target: 40h</span><span>${loggedPct}% logged</span>`;
+      document.getElementById('proj-bill-val').textContent  = billableHours + 'h';
+      document.getElementById('proj-bill-meta').innerHTML   = `<span>${billPct}% billable</span><span>${nonBill}h non-billable</span>`;
+      document.getElementById('proj-count').textContent     = _allProjects.length;
+      document.getElementById('proj-count-meta').innerHTML  = topProject ? `<span>${topProject.name} (primary)</span>` : '<span>—</span>';
+
+      // Topbar + sidebar
+      document.getElementById('active-chip').textContent    = _allProjects.length + ' active';
+      document.getElementById('sb-active').textContent      = _allProjects.length + ' active';
+      document.getElementById('sb-week-hours').textContent  = totalHours + 'h logged';
+
+      const container = document.getElementById('project-cards');
+      container.innerHTML = '';
+
+      if (_allProjects.length === 0) {
+        container.innerHTML = `<div class="panel" style="color:var(--muted); font-size:0.9rem; padding:8px 0;">No projects assigned yet.</div>`;
+        return;
+      }
+
+      _allProjects.forEach(p => {
+        // Hours per week for this project across the 4-week window
+        const weekHours = _weekTimesheets.map(ts =>
+          (ts?.entries || [])
+            .filter(e => String(e.project_id) === String(p.id))
+            .reduce((s, e) => s + e.hours, 0)
+        );
+        const thisWeek   = weekHours[3];
+        const monthTotal = +weekHours.reduce((s, h) => s + h, 0).toFixed(1);
+        const maxH       = Math.max(...weekHours, 1);
+
+        const card = document.createElement('section');
+        card.className = 'panel';
+        card.innerHTML = `
+          <div class="panel-header" style="margin-bottom:14px;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <h3 style="margin:0;">${p.name}</h3>
+              <span class="status-pill status-approved">Active</span>
+              <span style="font-size:0.78rem; color:${p.billable ? 'var(--accent)' : 'var(--muted)'}; font-weight:600;">${p.billable ? '● Billable' : '○ Non-billable'}</span>
+            </div>
+            ${p.description ? `<div style="font-size:0.82rem; color:var(--muted); margin-top:4px;">${p.description}</div>` : ''}
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:16px; margin-bottom:16px;">
+            <div>
+              <div style="font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">This Week</div>
+              <div style="font-size:1.2rem; font-weight:800; color:${thisWeek > 0 ? '#102a43' : 'var(--muted)'};">${thisWeek > 0 ? thisWeek + 'h' : '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">4-Week Total</div>
+              <div style="font-size:1.2rem; font-weight:800; color:#102a43;">${monthTotal > 0 ? monthTotal + 'h' : '—'}</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Weekly breakdown</div>
+            <div style="display:flex; gap:6px; align-items:flex-end; height:48px;">
+              ${weekHours.map((h, wi) => {
+                const barH    = Math.round((h / maxH) * 100);
+                const isActive = wi === 3;
+                return `<div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                  <div style="font-size:0.65rem; color:${isActive ? 'var(--accent)' : 'var(--muted)'}; font-weight:${isActive ? '700' : '400'};">${h > 0 ? h + 'h' : '—'}</div>
+                  <div style="width:100%; height:${Math.max(barH, h > 0 ? 8 : 0)}%; background:${isActive ? 'var(--accent)' : 'var(--border)'}; border-radius:4px 4px 0 0; min-height:3px;"></div>
+                </div>`;
+              }).join('')}
+            </div>
+            <div style="display:flex; gap:6px; margin-top:3px;">
+              ${_weekMondays.map((w, wi) => `<div style="flex:1; font-size:0.62rem; color:${wi === 3 ? 'var(--accent)' : 'var(--muted)'}; text-align:center; font-weight:${wi === 3 ? '700' : '400'};">${weekLabel(w).split(' ')[0]}</div>`).join('')}
+            </div>
+          </div>`;
+        container.appendChild(card);
+      });
+    }
+
+    async function changeWeek(dir) {
+      _currentMonday = new Date(_currentMonday);
+      _currentMonday.setDate(_currentMonday.getDate() + dir * 7);
+      await _loadProjects(_currentMonday);
+    }
+
+    // Calendar
+    let calMonth = new Date().getMonth(), calYear = new Date().getFullYear();
+    function buildCalendar() {
+      const drop = document.getElementById('week-cal-drop');
+      const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const firstDow    = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const curMonIso   = isoDate(_currentMonday);
+      let cells = '';
+      for (let i = 0; i < firstDow; i++) cells += `<div class="week-cal-cell empty"></div>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt  = new Date(calYear, calMonth, d);
+        const mon = new Date(dt);
+        const dow = dt.getDay();
+        mon.setDate(d - (dow === 0 ? 6 : dow - 1));
+        const monIso = isoDate(mon);
+        const sel    = monIso === curMonIso ? ' week-selected' : '';
+        cells += `<div class="week-cal-cell${sel}" data-monday="${monIso}">${d}</div>`;
+      }
+      drop.innerHTML = `
+        <div class="week-cal-header">
+          <button class="week-cal-nav" onclick="calNavMonth(event,-1)">&#8249;</button>
+          <span>${MONTHS[calMonth]} ${calYear}</span>
+          <button class="week-cal-nav" onclick="calNavMonth(event,1)">&#8250;</button>
+        </div>
+        <div class="week-cal-day-hdrs">${DAYS.map(d=>`<div class="week-cal-day-hdr">${d}</div>`).join('')}</div>
+        <div class="week-cal-grid">${cells}</div>`;
+      drop.querySelectorAll('.week-cal-cell[data-monday]').forEach(cell => {
+        cell.addEventListener('mouseenter', () => {
+          drop.querySelectorAll(`.week-cal-cell[data-monday="${cell.dataset.monday}"]`).forEach(c => { if (!c.classList.contains('week-selected')) c.classList.add('week-hover'); });
+        });
+        cell.addEventListener('mouseleave', () => drop.querySelectorAll('.week-cal-cell.week-hover').forEach(c => c.classList.remove('week-hover')));
+        cell.addEventListener('click', async e => {
+          e.stopPropagation();
+          const newMon = new Date(cell.dataset.monday + 'T12:00:00');
+          const delta  = Math.round((newMon - _currentMonday) / (7 * 86400000));
+          if (delta !== 0) await changeWeek(delta);
+          drop.style.display = 'none'; document.removeEventListener('click', closeCal);
+        });
+      });
+    }
+    function calNavMonth(e, dir) {
+      e.stopPropagation();
+      calMonth += dir;
+      if (calMonth < 0)  { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0;  calYear++; }
+      buildCalendar();
+    }
+    function toggleCalendar(e) {
+      e.stopPropagation();
+      const drop = document.getElementById('week-cal-drop');
+      if (drop.style.display === 'none') { buildCalendar(); drop.style.display = ''; setTimeout(() => document.addEventListener('click', closeCal), 0); }
+      else { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+    function closeCal(e) {
+      const drop = document.getElementById('week-cal-drop');
+      if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      await _loadProjects(_currentMonday);
+    });
+  </script>
+</body>
+</html>
