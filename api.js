@@ -1,4 +1,6 @@
-const API = 'http://localhost:8000';
+const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : 'https://RAILWAY_BACKEND_URL_HERE';
 
 // ─── Auth storage ─────────────────────────────────────────────────────────────
 function getToken()  { return localStorage.getItem('tf_token'); }
