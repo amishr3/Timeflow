@@ -1,6 +1,6 @@
 const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:8000'
-  : 'https://RAILWAY_BACKEND_URL_HERE';
+  : 'https://timeflow-production-9cb4.up.railway.app';
 
 // ─── Auth storage ─────────────────────────────────────────────────────────────
 function getToken()  { return localStorage.getItem('tf_token'); }
