@@ -264,7 +264,7 @@
             </div>
             <div style="font-size:0.75rem; color:var(--muted); margin-top:4px;">
               ${budget.remaining_hours !== null ? budget.remaining_hours.toFixed(1) + 'h remaining' : ''}
-              ${budget.estimated_revenue ? ` · Est. revenue: $${budget.estimated_revenue.toLocaleString()}` : ''}
+              ${budget.estimated_revenue ? ` · Est. revenue: ₹${budget.estimated_revenue.toLocaleString()}` : ''}
             </div>
           </div>` : ''}
 
@@ -285,7 +285,7 @@
             ${p.hourly_rate ? `
             <div>
               <div style="font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Rate</div>
-              <div style="font-size:1.1rem; font-weight:800; color:#102a43;">$${p.hourly_rate}/hr</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#102a43;">₹${p.hourly_rate}/hr</div>
             </div>` : ''}
           </div>`;
         list.appendChild(card);
