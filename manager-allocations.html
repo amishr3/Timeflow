@@ -248,7 +248,10 @@
             <div class="alloc-util-track"><div class="alloc-util-fill ${utilClass}" style="width:${Math.min(100,pct)}%"></div></div>
             <div class="alloc-util-pct">${pct}% allocated</div>
             ${loggedHTML}
-            <button class="button" style="font-size:0.8rem; padding:5px 12px; background:none; border:1.5px solid var(--border); color:var(--muted); margin-top:4px;" onclick="startEdit(${i})">Edit</button>`;
+            <div style="display:flex; gap:6px; margin-top:4px;">
+              <button class="button" style="font-size:0.8rem; padding:5px 12px; background:none; border:1.5px solid var(--border); color:var(--muted);" onclick="startEdit(${i})">Edit</button>
+              <button class="button" style="font-size:0.8rem; padding:5px 12px; background:none; border:1.5px solid #dc2626; color:#dc2626;" onclick="removeMember(${member.user_id}, '${member.name}')">Remove</button>
+            </div>`;
         }
 
         card.innerHTML = `
@@ -397,6 +400,14 @@
     function closeCal(e) {
       const drop = document.getElementById('week-cal-drop');
       if (drop && !drop.contains(e.target) && e.target.id !== 'cal-btn') { drop.style.display = 'none'; document.removeEventListener('click', closeCal); }
+    }
+
+    async function removeMember(userId, name) {
+      if (!confirm(`Remove ${name} from the team? This cannot be undone.`)) return;
+      try {
+        await apiFetch(`/users/${userId}`, { method: 'DELETE' });
+        await _loadAllocations(_currentMonday);
+      } catch(e) { alert('Could not remove member: ' + e.message); }
     }
 
     function toggleAddMember() {
