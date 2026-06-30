@@ -4,6 +4,9 @@ from typing import List
 
 from app.core.deps import get_current_user, require_manager
 from app.database import get_db
+from app.models.allocation import Allocation
+from app.models.expense import Expense
+from app.models.timesheet import Timesheet, TimeEntry
 from app.models.user import User
 from app.schemas.user import UserOut, UserUpdate
 
@@ -74,5 +77,12 @@ def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    # Delete related records before removing the user
+    ts_ids = [t.id for t in db.query(Timesheet).filter(Timesheet.user_id == user_id).all()]
+    if ts_ids:
+        db.query(TimeEntry).filter(TimeEntry.timesheet_id.in_(ts_ids)).delete(synchronize_session=False)
+    db.query(Timesheet).filter(Timesheet.user_id == user_id).delete(synchronize_session=False)
+    db.query(Allocation).filter(Allocation.user_id == user_id).delete(synchronize_session=False)
+    db.query(Expense).filter(Expense.user_id == user_id).delete(synchronize_session=False)
     db.delete(user)
     db.commit()
